@@ -2,9 +2,9 @@
 
 A full-stack logistics app with three authenticated portals — **customer**,
 **driver**, and **admin** — built on React 19 + Vite + TypeScript + Tailwind,
-with Firebase (Auth, Firestore, Storage) as the backend, real-time live
-tracking on a free OpenStreetMap/Leaflet map, and Paystack + Flutterwave
-payment integration.
+with Firebase (Auth, Firestore) as the backend, Vercel Blob for driver
+document storage, real-time live tracking on a free OpenStreetMap/Leaflet
+map, and Paystack + Flutterwave payment integration.
 
 ## What's real vs. demo mode
 
@@ -39,7 +39,8 @@ static mockup. The exceptions, called out so nothing surprises you later:
 |---|---|
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS 4 |
 | Animation | Motion (Framer Motion) |
-| Backend | Firebase Auth, Firestore, Storage |
+| Backend | Firebase Auth, Firestore |
+| File storage | Vercel Blob (driver document uploads) |
 | Live map | Leaflet + OpenStreetMap (free, no API key) |
 | Geocoding | OpenStreetMap Nominatim (free) |
 | Payments | Paystack + Flutterwave (inline checkout) |
@@ -54,18 +55,21 @@ The client doesn't have a Firebase project yet, so start here:
    the `firebaseConfig` values shown — you'll paste these into `.env`.
 3. In the left sidebar:
    - **Authentication** → Sign-in method → enable **Email/Password** and **Google**.
-   - **Firestore Database** → Create database → start in **production mode** (the rules file in this repo handles security, not the default-open test mode).
-   - **Storage** → Get started (needed for driver document uploads — this requires the project to be on the **Blaze** (pay-as-you-go) plan; the free tier covers normal usage for a while, you only pay if you exceed it).
-4. Deploy the security rules included in this repo (do this — the default Firestore/Storage rules deny everything, and skipping this step is the most common reason a fresh Firebase setup "doesn't work"):
+   - **Firestore Database** → Create database → start in **production mode** (the rules file in this repo handles security, not the default-open test mode). No billing plan needed for this.
+4. Deploy the security rules included in this repo (do this — the default Firestore rules deny everything, and skipping this step is the most common reason a fresh Firebase setup "doesn't work"):
    ```bash
    npm install -g firebase-tools
    firebase login
    firebase use --add        # pick your new project, name it e.g. "production"
-   firebase deploy --only firestore:rules,firestore:indexes,storage
+   firebase deploy --only firestore:rules,firestore:indexes
    ```
 5. Make your own account an admin: sign up once through the app as a normal
    user, then in the Firestore console open `users/<your-uid>` and change
    `role` from `user` to `admin`. That account can now sign into `/admin/auth`.
+
+Note: this project intentionally does **not** use Firebase Storage — driver
+document uploads go through Vercel Blob instead (see step 3 below), which
+avoids needing Firebase's Blaze (billing-enabled) plan just for file uploads.
 
 ## 2. Environment variables
 
@@ -76,6 +80,7 @@ cp .env.example .env
 ```
 
 - `VITE_FIREBASE_*` — from step 1.
+- `VITE_BLOB_UPLOAD_API_URL` — from step 3 below.
 - `VITE_PAYSTACK_PUBLIC_KEY` — Paystack dashboard → Settings → API Keys (use the **test** public key first, `pk_test_...`).
 - `VITE_FLUTTERWAVE_PUBLIC_KEY` — Flutterwave dashboard → Settings → API (use the **test** public key first, `FLWPUBK_TEST-...`).
 
@@ -85,7 +90,35 @@ verify payments server-side yet; before accepting real money, add a Cloud
 Function that calls Paystack/Flutterwave's *verify transaction* endpoint
 with the secret key and only then marks a booking as paid.
 
-## 3. Run locally
+## 3. File storage — Vercel Blob
+
+Driver document uploads (license, insurance, registration, permit) go
+through [Vercel Blob](https://vercel.com/docs/vercel-blob) instead of
+Firebase Storage, so file uploads work without putting the Firebase project
+on a billing plan. This needs its own small deploy, separate from the main
+app:
+
+1. Push this repo to GitHub (or GitLab/Bitbucket) if you haven't already —
+   Vercel deploys from a git repo.
+2. In the [Vercel dashboard](https://vercel.com/new), import the repo as a
+   **new project**, and set its **Root Directory** to `vercel-blob-api`
+   (this keeps it a separate, tiny deployment from the main Vite app — the
+   main app still deploys to Firebase Hosting, not Vercel).
+3. In that Vercel project's Storage tab, create a new **Blob** store and
+   connect it to the project — this automatically sets the
+   `BLOB_READ_WRITE_TOKEN` environment variable for you.
+4. Add one more environment variable to that Vercel project:
+   `FIREBASE_API_KEY` = the same value as `VITE_FIREBASE_API_KEY` (used to
+   verify a caller's Firebase ID token server-side before issuing an
+   upload token — no service account/admin SDK needed).
+5. Deploy. Copy the resulting URL (e.g. `https://mivo-blob-api.vercel.app`)
+   and set `VITE_BLOB_UPLOAD_API_URL` in this project's `.env` to
+   `<that-url>/api/upload-token`.
+
+If `VITE_BLOB_UPLOAD_API_URL` is left blank, the rest of the app works
+normally — only document upload is disabled.
+
+## 4. Run locally
 
 ```bash
 npm install
@@ -95,7 +128,7 @@ npm run dev
 Opens at `http://localhost:3000`. Without `.env` filled in, it runs in demo
 mode automatically — good for a first look at the UI.
 
-## 4. Deploy — Firebase Hosting
+## 5. Deploy — Firebase Hosting
 
 Since the backend is already Firebase, hosting the frontend there too means
 one project, one login, one deploy command for everything.
@@ -106,9 +139,9 @@ npm run build
 firebase deploy
 ```
 
-That single `firebase deploy` pushes the built frontend (`dist/`), the
-Firestore rules and indexes, and the Storage rules together, because all
-four are declared in `firebase.json`. You'll get a URL immediately:
+That single `firebase deploy` pushes the built frontend (`dist/`) and the
+Firestore rules and indexes together, because both are declared in
+`firebase.json`. You'll get a URL immediately:
 
 ```
 https://<your-project-id>.web.app
@@ -124,10 +157,10 @@ If you ever want to deploy *only* the frontend without touching rules
 firebase deploy --only hosting
 ```
 
-Or only the rules after editing `firestore.rules` or `storage.rules`:
+Or only the rules after editing `firestore.rules`:
 
 ```bash
-firebase deploy --only firestore:rules,firestore:indexes,storage
+firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 **One more step**: Firebase Hosting's own domain is automatically an
@@ -136,7 +169,7 @@ nothing extra to configure there. If you later attach a custom domain
 (Console → Hosting → Add custom domain), Firebase adds it to the
 authorized list automatically too.
 
-## 5. Seeding sample trucks
+## 6. Seeding sample trucks
 
 The four default truck categories (Small/Medium/Large/XL Cargo) are seeded
 automatically the first time anyone opens the "Select Truck" screen against
@@ -151,7 +184,7 @@ src/
   lib/
     firestore.ts          — typed data-access layer (all collections)
     payments.ts           — Paystack + Flutterwave inline checkout
-    storage.ts            — driver document upload helper
+    storage.ts            — driver document upload helper (Vercel Blob client)
     geocode.ts             — free address → lat/lng + distance calc
   contexts/
     AuthContext.tsx        — current user + Firestore profile + role
@@ -168,7 +201,9 @@ src/
   pages/admin/              — admin portal (lazy-loaded)
 firestore.rules             — security rules (role-based, no backdoors)
 firestore.indexes.json      — composite indexes the app's queries need
-storage.rules               — driver document upload rules
+vercel-blob-api/            — separate deploy: issues Vercel Blob upload
+                               tokens after verifying the caller's Firebase
+                               ID token (see "File storage" above)
 ```
 
 ## Known gaps for a v2
