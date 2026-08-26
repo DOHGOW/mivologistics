@@ -2,6 +2,8 @@
 
 Status as of 2026-08-26. Repo: https://github.com/DOHGOW/mivologistics.
 Firebase project: `mivologisticsv2` (linked via `.firebaserc`, config in local `.env`).
+Vercel Blob project: `mivologistics` (https://mivologistics.vercel.app), root
+directory `vercel-blob-api`.
 
 ## 0. Blockers — do these first (console only, can't be done via CLI)
 
@@ -9,18 +11,11 @@ The Firebase project exists and has a registered web app, but Firestore
 isn't provisioned yet. `firebase deploy` will fail until this is done
 manually at [console.firebase.google.com/project/mivologisticsv2](https://console.firebase.google.com/project/mivologisticsv2):
 
-- [ ] **Firestore** → Firestore Database → Create database → **production
-      mode**. (Confirmed missing: `firestore:databases:create` returned
-      "Cloud Firestore API has not been used in this project". No billing
-      plan needed for this.)
-- [ ] **Authentication** → Sign-in method → enable **Email/Password** and
-      **Google**. (Not checkable via CLI — verify in console.)
-
-Once both are done, run:
-```bash
-firebase deploy --only firestore:rules,firestore:indexes
-```
-This pushes `firestore.rules` and `firestore.indexes.json` from this repo.
+- [x] **Firestore** → Firestore Database → Create database → **production
+      mode**. Done — `firestore.rules` and `firestore.indexes.json` are
+      deployed and live.
+- [x] **Authentication** → Sign-in method → enable **Email/Password** and
+      **Google**. Done.
 
 **Storage note:** Firebase Storage setup was dropped from this project —
 the Google Cloud billing account for this Firebase project couldn't be
@@ -30,16 +25,16 @@ Storage requires the Blaze plan. Driver document uploads now go through
 
 ## 1. Vercel Blob (driver document storage)
 
-- [ ] Import this GitHub repo as a new Vercel project with **Root
-      Directory** set to `vercel-blob-api`.
-- [ ] Create a Blob store in that project's Storage tab and connect it
-      (auto-sets `BLOB_READ_WRITE_TOKEN`).
-- [ ] Add env var `FIREBASE_API_KEY` on that Vercel project = same value as
-      `VITE_FIREBASE_API_KEY`.
-- [ ] Deploy, then set `VITE_BLOB_UPLOAD_API_URL` in this repo's `.env` to
-      `<vercel-project-url>/api/upload-token`.
-- [ ] Test a driver document upload end to end (Driver portal → Verification
-      → upload a file) to confirm the token flow and CORS both work.
+- [x] Imported this GitHub repo as a Vercel project (`mivologistics`) with
+      **Root Directory** set to `vercel-blob-api`.
+- [x] Created a **public** Blob store and connected it (`BLOB_READ_WRITE_TOKEN`
+      set automatically).
+- [x] Added `FIREBASE_API_KEY` on the Vercel project.
+- [x] `VITE_BLOB_UPLOAD_API_URL` set in `.env` to
+      `https://mivologistics.vercel.app/api/upload-token`.
+- [x] Tested end to end with an automated browser run: registered a test
+      driver, uploaded a document, got a real 200 from the endpoint and the
+      "Uploaded" status. Confirmed working.
 
 ## 2. Make your account admin
 
@@ -91,6 +86,14 @@ Carried over from the README, worth tracking explicitly:
 - [ ] **Real in-app voice calling** (Twilio Voice or Agora) — currently a
       `tel:` link.
 - [ ] Dedicated customer-support inbox separate from per-trip chat.
+- [ ] **Admin can't actually view uploaded documents.** `DocumentUpload.tsx`
+      keeps each document's URL only in local component state — it's never
+      written to Firestore. `admin/Compliance.tsx` approves/rejects drivers
+      based on `documentsStatus` alone, with no image/file to inspect. This
+      predates the Vercel Blob change (same gap existed with Firebase
+      Storage) but is worth fixing before documents actually need reviewing:
+      persist each doc's URL (e.g. a `documents: { license: url, ... }` map
+      on the driver profile) when upload completes.
 
 ## 6. Nice-to-haves worth deciding on before go-live
 
