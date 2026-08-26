@@ -56,16 +56,25 @@ Storage requires the Blaze plan. Driver document uploads now go through
 
 ## 4. Pre-deploy sanity
 
-- [ ] `npm run lint` (this project's "lint" is `tsc --noEmit` — there's no
-      ESLint configured, so this only catches type errors, not style/logic
-      issues).
-- [ ] `npm run build` completes clean.
-- [ ] Manually click through all three portals (customer / driver / admin)
-      against live Firebase, not demo mode.
-- [ ] `firebase deploy` (deploys hosting + firestore rules/indexes together,
-      per `firebase.json`).
-- [ ] Note: there is no automated test suite in this repo — verification is
-      manual click-through only.
+- [x] `npm run lint` (`tsc --noEmit`) — clean.
+- [x] `npm run build` — clean (note: no ESLint configured, so lint only
+      catches type errors, not style/logic issues).
+- [x] Click-through smoke test — automated via a throwaway Playwright script
+      (not committed) against **live Firebase**, not demo mode: customer
+      sign-up → Home, driver sign-up → document upload (real Vercel Blob
+      round trip), admin login page render. Zero console errors across all
+      of it. Re-ran the driver document upload specifically against the
+      deployed production URL (not just localhost) to confirm CORS/auth
+      work from the real domain too — confirmed.
+- [x] `firebase deploy` — live at https://mivologisticsv2.web.app.
+- [ ] This was a smoke pass (auth + landing screens), not exhaustive —
+      still worth manually clicking through deeper flows before calling
+      this launch-ready: actual booking creation/truck selection
+      (geocoding), chat, live tracking map, and admin actions (approving a
+      driver, dispatch). Payment checkout is intentionally deferred to the
+      Payments step.
+- Note: there is no automated test suite in this repo — verification above
+  was one-off scripted smoke testing, not a repeatable suite.
 
 ## 5. Known gaps before this is production-hardened
 
