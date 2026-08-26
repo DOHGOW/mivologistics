@@ -49,6 +49,13 @@ export interface UserProfile {
   createdAt?: Timestamp;
 }
 
+export interface TruckPhotos {
+  front?: string;
+  back?: string;
+  side?: string;
+  plate?: string;
+}
+
 export interface DriverProfile {
   uid: string;
   displayName: string;
@@ -64,6 +71,19 @@ export interface DriverProfile {
   totalTrips: number;
   totalEarnings: number;
   createdAt?: Timestamp;
+  // Multi-step onboarding, captured after account creation and before
+  // document upload — see pages/driver/DriverOnboarding.tsx.
+  onboardingStatus?: 'pending' | 'complete';
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  nin?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  truckYear?: string;
+  chassisNumber?: string;
+  capacityTons?: string;
+  truckPhotos?: TruckPhotos;
 }
 
 export type BookingStatus = 'pending' | 'assigned' | 'in-transit' | 'delivered' | 'cancelled';

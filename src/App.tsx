@@ -41,6 +41,7 @@ const DriverDashboard = lazy(() => import('./pages/driver/Dashboard'));
 const ActiveTrip = lazy(() => import('./pages/driver/ActiveTrip'));
 const DriverEarnings = lazy(() => import('./pages/driver/Earnings'));
 const DriverAuth = lazy(() => import('./pages/driver/Auth'));
+const DriverOnboarding = lazy(() => import('./pages/driver/DriverOnboarding'));
 const DocumentUpload = lazy(() => import('./pages/driver/DocumentUpload'));
 const DriverHistory = lazy(() => import('./pages/driver/History'));
 const VehicleInfo = lazy(() => import('./pages/driver/VehicleInfo'));
@@ -103,6 +104,7 @@ function PageTransition() {
 
           {/* Driver Routes */}
           <Route path="/driver/auth" element={<DriverAuth />} />
+          <Route path="/driver/onboarding" element={<ProtectedRoute allow={['driver']} redirectTo="/driver/auth"><DriverOnboarding /></ProtectedRoute>} />
           <Route path="/driver/documents" element={<ProtectedRoute allow={['driver']} redirectTo="/driver/auth"><DocumentUpload /></ProtectedRoute>} />
           <Route path="/driver/dashboard" element={<ProtectedRoute allow={['driver']} redirectTo="/driver/auth"><DriverDashboard /></ProtectedRoute>} />
           <Route path="/driver/history" element={<ProtectedRoute allow={['driver']} redirectTo="/driver/auth"><DriverHistory /></ProtectedRoute>} />

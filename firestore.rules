@@ -104,7 +104,15 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isOwner(uid)
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['isOnline', 'vehicleType', 'plateNumber', 'vehicleModel', 'vehicleColor', 'documentsStatus']));
+                 .hasOnly([
+                   'isOnline', 'vehicleType', 'plateNumber', 'vehicleModel', 'vehicleColor', 'documentsStatus',
+                   // Self-reported onboarding fields (biodata, truck info, truck
+                   // photos) — same trust level as the vehicle fields above, not
+                   // the admin-controlled trust/financial fields below.
+                   'onboardingStatus', 'dateOfBirth', 'gender', 'address', 'nin',
+                   'emergencyContactName', 'emergencyContactPhone',
+                   'truckYear', 'chassisNumber', 'capacityTons', 'truckPhotos',
+                 ]));
       allow delete: if isAdmin();
     }
 

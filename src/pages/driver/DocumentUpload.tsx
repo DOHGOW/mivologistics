@@ -100,7 +100,7 @@ export default function DocumentUpload() {
           </button>
           <div>
             <h1 className="font-display font-bold text-lg text-gray-900">Verification</h1>
-            <p className="text-[10px] font-bold text-[#ff8c00] uppercase tracking-widest">Step 2 of 2</p>
+            <p className="text-[10px] font-bold text-[#ff8c00] uppercase tracking-widest">Step 3 of 3</p>
           </div>
         </div>
       </header>

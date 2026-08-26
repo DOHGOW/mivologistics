@@ -23,7 +23,9 @@ export default function DriverAuth() {
 
   const routeAfterLogin = async (uid: string) => {
     const driverProfile = await getDriverProfile(uid);
-    if (!driverProfile || driverProfile.documentsStatus === 'pending') {
+    if (!driverProfile || driverProfile.onboardingStatus !== 'complete') {
+      navigate('/driver/onboarding');
+    } else if (driverProfile.documentsStatus === 'pending') {
       navigate('/driver/documents');
     } else {
       navigate('/driver/dashboard');
@@ -64,12 +66,13 @@ export default function DriverAuth() {
           isOnline: false,
           isVerified: false,
           documentsStatus: 'pending',
+          onboardingStatus: 'pending',
           rating: 0,
           totalTrips: 0,
           totalEarnings: 0,
         });
-        toast.success('Account created — let\'s verify your documents.');
-        navigate('/driver/documents');
+        toast.success('Account created — let\'s set up your profile.');
+        navigate('/driver/onboarding');
       }
     } catch (err) {
       setError(humanizeAuthError(err));
@@ -101,11 +104,12 @@ export default function DriverAuth() {
           isOnline: false,
           isVerified: false,
           documentsStatus: 'pending',
+          onboardingStatus: 'pending',
           rating: 0,
           totalTrips: 0,
           totalEarnings: 0,
         });
-        navigate('/driver/documents');
+        navigate('/driver/onboarding');
         return;
       }
       if (profile.role !== 'driver') {
