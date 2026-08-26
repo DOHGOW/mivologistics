@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Star, Zap, Truck, Package, Shield, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useBooking } from '../contexts/BookingContext';
+import { useAuth } from '../contexts/AuthContext';
 import { listTrucks, seedTrucksIfEmpty, type Truck as TruckDoc } from '../lib/firestore';
 import { isDemoMode } from '../firebase';
 
@@ -29,6 +30,7 @@ function priceFor(pricePerKm: number, distanceKm: number) {
 export default function SelectTruck() {
   const navigate = useNavigate();
   const { booking, setBooking } = useBooking();
+  const { profile } = useAuth();
   const [trucks, setTrucks] = useState<DisplayTruck[]>([]);
   const [loading, setLoading] = useState(true);
   const distance = booking.distanceKm ?? MIN_DISTANCE_KM;
@@ -38,7 +40,13 @@ export default function SelectTruck() {
     async function load() {
       try {
         if (!isDemoMode) {
-          await seedTrucksIfEmpty(FALLBACK_TRUCKS);
+          // Seeding writes to `trucks`, which firestore.rules restricts to
+          // admins — only attempt it when the signed-in user actually is
+          // one, so a regular customer never triggers (and eats) a
+          // permission-denied here.
+          if (profile?.role === 'admin') {
+            await seedTrucksIfEmpty(FALLBACK_TRUCKS);
+          }
           const docs = await listTrucks();
           if (!cancelled && docs.length > 0) {
             setTrucks(docs.filter((t) => t.available).map((t) => ({
@@ -59,13 +67,25 @@ export default function SelectTruck() {
             priceDisplay: `₦${priceFor(t.pricePerKm, distance).toLocaleString()}`,
           })));
         }
+      } catch {
+        // Firestore unreachable/denied for any reason — still show
+        // customers something bookable instead of a blank screen.
+        if (!cancelled) {
+          setTrucks(FALLBACK_TRUCKS.map((t, i) => ({
+            ...t,
+            id: String(i + 1),
+            rating: [4.8, 4.9, 4.7, 5.0][i],
+            price: priceFor(t.pricePerKm, distance),
+            priceDisplay: `₦${priceFor(t.pricePerKm, distance).toLocaleString()}`,
+          })));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [distance]);
+  }, [distance, profile?.role]);
 
   const handleSelectTruck = (truck: DisplayTruck) => {
     setBooking({

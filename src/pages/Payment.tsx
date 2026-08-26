@@ -45,7 +45,10 @@ export default function Payment() {
         destinationCoords: booking.destinationCoords || { lat: 6.5244, lng: 3.3792 },
         distanceKm: booking.distanceKm || 5,
         price: booking.price || 0,
-        paymentMethod: selected === 'cod' ? undefined : (selected as 'paystack' | 'flutterwave' | 'wallet'),
+        // Firestore's addDoc() rejects `undefined` field values outright, so
+        // Cash on Delivery (which has no gateway) must omit the key rather
+        // than set it to undefined — paymentMethod is optional on Booking.
+        ...(selected !== 'cod' ? { paymentMethod: selected as 'paystack' | 'flutterwave' | 'wallet' } : {}),
         paymentRef,
         paymentStatus,
         status: 'pending',

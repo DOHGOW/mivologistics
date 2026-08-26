@@ -67,14 +67,43 @@ Storage requires the Blaze plan. Driver document uploads now go through
       deployed production URL (not just localhost) to confirm CORS/auth
       work from the real domain too — confirmed.
 - [x] `firebase deploy` — live at https://mivologisticsv2.web.app.
-- [ ] This was a smoke pass (auth + landing screens), not exhaustive —
-      still worth manually clicking through deeper flows before calling
-      this launch-ready: actual booking creation/truck selection
-      (geocoding), chat, live tracking map, and admin actions (approving a
-      driver, dispatch). Payment checkout is intentionally deferred to the
-      Payments step.
+- [x] **Deeper pass: full booking creation flow**, tested end-to-end against
+      live Firebase (real Nigerian addresses, real Nominatim geocoding, real
+      distance calc, real Firestore write, real navigation to
+      booking-success). This surfaced and fixed two launch-blocking bugs —
+      see below. Re-verified passing after both fixes; redeployed.
+- [ ] Still not covered by the deeper pass: chat, live tracking map, and
+      admin actions (approving a driver, dispatch). Those need either your
+      admin session or two simultaneous roles (customer + driver on one
+      trip) to exercise properly — worth a manual pass. Payment checkout
+      (Paystack/Flutterwave) is intentionally deferred to the Payments step.
 - Note: there is no automated test suite in this repo — verification above
   was one-off scripted smoke testing, not a repeatable suite.
+
+**Bugs found and fixed during the deeper pass:**
+
+- [x] **Truck selection screen was completely broken for every real
+      customer.** `seedTrucksIfEmpty()` ([firestore.ts:242](src/lib/firestore.ts#L242))
+      writes directly to the `trucks` collection, but `firestore.rules`
+      restricts that write to admins. On this fresh project (empty `trucks`
+      collection), any customer's first visit to Select Truck threw a
+      permission-denied — and because the surrounding `try/finally` in
+      [SelectTruck.tsx](src/pages/SelectTruck.tsx) had no `catch`, the
+      fallback truck list never rendered either. Result: a blank screen,
+      zero trucks, for anyone. Fixed by only attempting the seed when the
+      signed-in user is an admin, and adding a catch that always falls back
+      to the hardcoded truck list on any Firestore error.
+      **Follow-up**: the real `trucks` collection in Firestore is still
+      empty — customers currently see the client-side fallback catalog,
+      which works but isn't reflected in Admin → Fleet Management. Visiting
+      Fleet Management once as the admin account will auto-seed it for real.
+- [x] **Cash on Delivery could never create a booking.** `Payment.tsx` set
+      `paymentMethod: undefined` for COD bookings, and Firestore's
+      `addDoc()` rejects any field value of `undefined` outright — every
+      COD attempt crashed with "Unsupported field value: undefined" instead
+      of creating a booking. Fixed by omitting the key entirely for COD
+      (it's optional on the `Booking` type) instead of setting it to
+      `undefined`.
 
 ## 5. Known gaps before this is production-hardened
 
