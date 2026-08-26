@@ -54,12 +54,7 @@ async function processUpload(body, request) {
 }
 
 function errorBody(error) {
-  // TEMP: includes `stack` for live debugging of the initial deploy — strip
-  // this field once the endpoint is confirmed working.
-  return {
-    error: error instanceof Error ? error.message : 'Upload token request failed',
-    stack: error instanceof Error ? error.stack : undefined,
-  };
+  return { error: error instanceof Error ? error.message : 'Upload token request failed' };
 }
 
 export default async function handler(request, response) {
