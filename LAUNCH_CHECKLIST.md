@@ -38,10 +38,9 @@ Storage requires the Blaze plan. Driver document uploads now go through
 
 ## 2. Make your account admin
 
-- [ ] `npm run dev`, sign up once through the app as a normal user.
-- [ ] In Firestore console, open `users/<your-uid>`, change `role` from
-      `user` to `admin`.
-- [ ] Confirm you can sign into `/admin/auth`.
+- [x] Signed up through the app, flipped `role` to `admin` in the Firestore
+      console, confirmed login at `/admin/auth` routes into the admin
+      dashboard. Done.
 
 ## 3. Payments
 
