@@ -123,14 +123,10 @@ Carried over from the README, worth tracking explicitly:
 - [ ] **Real in-app voice calling** (Twilio Voice or Agora) — currently a
       `tel:` link.
 - [ ] Dedicated customer-support inbox separate from per-trip chat.
-- [ ] **Admin can't actually view uploaded documents.** `DocumentUpload.tsx`
-      keeps each document's URL only in local component state — it's never
-      written to Firestore. `admin/Compliance.tsx` approves/rejects drivers
-      based on `documentsStatus` alone, with no image/file to inspect. This
-      predates the Vercel Blob change (same gap existed with Firebase
-      Storage) but is worth fixing before documents actually need reviewing:
-      persist each doc's URL (e.g. a `documents: { license: url, ... }` map
-      on the driver profile) when upload completes.
+- [x] **Admin can't actually view uploaded documents.** Fixed — see the
+      "Add multi-step driver onboarding" and "Close the document-review gap"
+      commits. Documents and truck photos now persist to the driver profile
+      and render in `admin/Compliance.tsx`.
 
 ## 6. Nice-to-haves worth deciding on before go-live
 

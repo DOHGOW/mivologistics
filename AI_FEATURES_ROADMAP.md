@@ -13,6 +13,11 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
 - [x] **Multi-step driver onboarding** (biodata → truck info → truck photos)
       — see `src/pages/driver/DriverOnboarding.tsx`. Deployed and tested
       end-to-end.
+- [x] **Document-review gap fixed** — uploaded documents/truck photos now
+      persist to Firestore and render in `admin/Compliance.tsx` as an
+      expandable panel (biodata, truck details, photos, KYC docs), instead
+      of vanishing into local component state. Verified by reading the
+      persisted record back after a real upload.
 
 ## 🟢 Buildable now
 
@@ -22,15 +27,11 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
 - [ ] **Driver behavior/trust scoring** — compute a basic score (speed
       spikes, erratic route deviation) from the `driverLocations` pings
       already being written during live tracking. No new data source.
-- [ ] **AI document verification (fixing the gap flagged earlier)** — before
-      any smart verification, the underlying bug still needs fixing:
-      `DocumentUpload.tsx` never persists a document's URL to Firestore, so
-      there's nothing for a reviewer (human or AI) to check yet. That part
-      is 🟢 buildable now; the "AI" part (OCR/forgery detection) is 🟡, see
-      below.
-- [ ] **Photo-based cargo condition comparison** — same story: capturing
-      before/after photos into a booking record is 🟢 buildable now; having
-      something *look* at them and flag damage is 🟡.
+- [x] **Document persistence for review** — done (see above). The "AI" part
+      (OCR/forgery detection) is still 🟡, see below.
+- [ ] **Photo-based cargo condition comparison** — capturing before/after
+      photos into a booking record is 🟢 buildable now; having something
+      *look* at them and flag damage is 🟡.
 
 ## 🟡 Needs an AI provider key first
 
@@ -79,8 +80,8 @@ Flagging these plainly rather than quietly building a fake version:
 
 ## Suggested order
 
-1. Backhaul matching (🟢, high value, no dependencies)
+1. Backhaul matching (🟢, high value, no dependencies) — next up
 2. Driver behavior scoring from existing GPS data (🟢)
-3. Fix document-URL persistence so there's something to review (🟢) — then
-   revisit AI document verification once a provider is chosen (🟡)
-4. Everything else, sequenced once the 🟡/🔴 blockers are resolved
+3. ~~Fix document-URL persistence~~ — done
+4. Everything else, sequenced once the 🟡/🔴 blockers are resolved (needs an
+   AI provider decision, or a vendor/infra decision — see above)
