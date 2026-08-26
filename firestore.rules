@@ -111,7 +111,7 @@ service cloud.firestore {
                    // the admin-controlled trust/financial fields below.
                    'onboardingStatus', 'dateOfBirth', 'gender', 'address', 'nin',
                    'emergencyContactName', 'emergencyContactPhone',
-                   'truckYear', 'chassisNumber', 'capacityTons', 'truckPhotos',
+                   'truckYear', 'chassisNumber', 'capacityTons', 'truckPhotos', 'documents',
                  ]));
       allow delete: if isAdmin();
     }

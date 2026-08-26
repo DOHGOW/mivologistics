@@ -56,6 +56,13 @@ export interface TruckPhotos {
   plate?: string;
 }
 
+export interface DriverDocuments {
+  license?: string;
+  insurance?: string;
+  registration?: string;
+  permit?: string;
+}
+
 export interface DriverProfile {
   uid: string;
   displayName: string;
@@ -84,6 +91,7 @@ export interface DriverProfile {
   chassisNumber?: string;
   capacityTons?: string;
   truckPhotos?: TruckPhotos;
+  documents?: DriverDocuments;
 }
 
 export type BookingStatus = 'pending' | 'assigned' | 'in-transit' | 'delivered' | 'cancelled';

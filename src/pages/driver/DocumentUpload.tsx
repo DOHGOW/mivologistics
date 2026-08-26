@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,7 +14,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { uploadDriverDocument } from '../../lib/storage';
-import { updateDriverProfile } from '../../lib/firestore';
+import { updateDriverProfile, getDriverProfile, type DriverDocuments } from '../../lib/firestore';
 import { isDemoMode } from '../../firebase';
 
 interface DocItem {
@@ -43,6 +43,18 @@ export default function DocumentUpload() {
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (isDemoMode || !user) return;
+    getDriverProfile(user.uid).then((profile) => {
+      const existing = profile?.documents;
+      if (!existing) return;
+      setDocuments((prev) => prev.map((d) => {
+        const url = existing[d.id as keyof DriverDocuments];
+        return url ? { ...d, status: 'uploaded', url } : d;
+      }));
+    });
+  }, [user]);
+
   const handleFilePicked = async (file: File) => {
     if (!selectedDoc) return;
 
@@ -62,7 +74,19 @@ export default function DocumentUpload() {
       const url = await uploadDriverDocument(user.uid, selectedDoc.id, file, {
         onProgress: setProgress,
       });
-      setDocuments((prev) => prev.map((d) => (d.id === selectedDoc.id ? { ...d, status: 'uploaded', url } : d)));
+      setDocuments((prev) => {
+        const next = prev.map((d) => (d.id === selectedDoc.id ? { ...d, status: 'uploaded' as const, url } : d));
+        const documentUrls: DriverDocuments = Object.fromEntries(
+          next.filter((d) => d.url).map((d) => [d.id, d.url])
+        );
+        // Persist the full map so admin compliance review has something to
+        // actually look at (previously these URLs only lived in this local
+        // component state and were never saved).
+        updateDriverProfile(user.uid, { documents: documentUrls }).catch(() => {
+          toast.error('Uploaded, but could not save the record. Try re-uploading.');
+        });
+        return next;
+      });
       setSelectedDoc(null);
       toast.success(`${selectedDoc.title} uploaded`);
     } catch (err) {
