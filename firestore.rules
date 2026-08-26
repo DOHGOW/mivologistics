@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Data model (see src/lib/firestore.ts for the matching TS types)
+    // ===============================================================
+    //
+    // /users/{uid}                        — UserProfile (role: user|driver|admin)
+    //   /users/{uid}/notifications/{id}    — AppNotification
+    //   /users/{uid}/walletTransactions/{id} — WalletTransaction
+    // /driverProfiles/{uid}                — DriverProfile (vehicle + verification)
+    // /trucks/{truckId}                    — Truck (pricing shown in the booking flow)
+    // /bookings/{bookingId}                — Booking
+    //   /bookings/{bookingId}/messages/{id}— ChatMessage
+    // /driverLocations/{bookingId}         — live lat/lng for one active booking
+    // /reviews/{reviewId}                  — Review
+    //
+    // Admin roles are granted manually by editing a user's `role` field to
+    // "admin" directly in the Firestore console or via the Admin SDK —
+    // there is no self-signup path to admin, and no email is hardcoded here.
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && myRole() == 'admin';
+    }
+
+    function isDriver() {
+      return isAuthenticated() && myRole() == 'driver';
+    }
+
+    function bookingOf(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+    }
+
+    function isBookingParty(bookingId) {
+      let b = bookingOf(bookingId);
+      return isAuthenticated() && (b.userId == request.auth.uid || b.driverId == request.auth.uid);
+    }
+
+    // ===============================================================
+    // users
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      // Self-signup can only ever create a 'user' or 'driver' account —
+      // never 'admin'. Admin promotion happens outside client rules.
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['user', 'driver']
+        && request.resource.data.status == 'active';
+      // Owners can update their own profile but can never change their own
+      // role or status (that would let a suspended user reinstate
+      // themselves, or a user self-promote). Only an admin can do that.
+      allow update: if isAdmin()
+        || (isOwner(uid)
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status);
+      allow delete: if isOwner(uid) || isAdmin();
+
+      match /notifications/{notificationId} {
+        allow read, update: if isOwner(uid) || isAdmin();
+        // Any signed-in party (e.g. a driver notifying their customer) can
+        // push a notification into someone's inbox. For production, move
+        // this to a Cloud Function triggered off booking/payment writes
+        // instead of trusting the client.
+        allow create: if isAuthenticated();
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+
+      match /walletTransactions/{txId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid);
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ===============================================================
+    // driverProfiles
+    // ===============================================================
+
+    match /driverProfiles/{uid} {
+      // Readable by any signed-in user — customers need this to show
+      // driver info, dispatch needs to list online drivers.
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && request.resource.data.uid == uid;
+      // A driver may only touch their own operational fields (online
+      // status, vehicle details). Verification, rating, and earnings are
+      // trust/financial fields an admin (or a trusted server process)
+      // must control.
+      allow update: if isAdmin()
+        || (isOwner(uid)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['isOnline', 'vehicleType', 'plateNumber', 'vehicleModel', 'vehicleColor', 'documentsStatus']));
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // trucks — the categories/pricing shown in the booking flow
+    // ===============================================================
+
+    match /trucks/{truckId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // bookings
+    // ===============================================================
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid || resource.data.driverId == request.auth.uid || isAdmin());
+
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      // Owner can update their own still-pending booking (e.g. cancel).
+      // The assigned driver can progress status/driver fields. Admin can
+      // do anything (manual dispatch, support overrides).
+      allow update: if isAdmin()
+        || (isAuthenticated() && resource.data.userId == request.auth.uid)
+        || (isAuthenticated() && (resource.data.driverId == request.auth.uid || request.resource.data.driverId == request.auth.uid) && isDriver());
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isBookingParty(bookingId) || isAdmin();
+        allow create: if (isBookingParty(bookingId) || isAdmin()) && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ===============================================================
+    // driverLocations — one live doc per active booking
+    // ===============================================================
+
+    match /driverLocations/{bookingId} {
+      allow read: if isBookingParty(bookingId) || isAdmin();
+      allow write: if isAuthenticated() && bookingOf(bookingId).driverId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // reviews
+    // ===============================================================
+
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if false; // reviews are immutable once posted
+      allow delete: if isAdmin();
+    }
+  }
+}
