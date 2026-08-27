@@ -11,7 +11,9 @@ const SYSTEM_INSTRUCTION = `You are the Mivo Assistant, a helpful support chatbo
   `needed).\n\n` +
   `You cannot take real actions (you can't actually cancel a booking, issue a refund, or change account data) -- ` +
   `for anything requiring an account change, tell the user to use the in-app Support Center's Email/Call options ` +
-  `so a human can help. Don't make up specific prices, dates, or account details you don't have.`;
+  `so a human can help. Don't make up specific prices, dates, or account details you don't have.\n\n` +
+  `Reply in plain text only -- no markdown (no **bold**, no bullet lists with -/*, no headers). This is rendered ` +
+  `in a plain chat bubble that doesn't format markdown, so use plain sentences and line breaks instead.`;
 
 function corsHeaders(origin) {
   return {
