@@ -18,6 +18,12 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
       expandable panel (biodata, truck details, photos, KYC docs), instead
       of vanishing into local component state. Verified by reading the
       persisted record back after a real upload.
+- [x] **AI document verification** — Google Gemini (free tier, no Google
+      Cloud billing needed, which matters given this project's billing
+      signup is otherwise blocked). "AI Check" button per document in
+      Compliance runs an advisory pre-check (readable? right doc type?
+      expired? name?) — never auto-approves/rejects, a human admin always
+      decides. Verified end-to-end with a real Gemini call.
 
 ## 🟢 Buildable now
 
@@ -33,15 +39,6 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
 - [ ] **Photo-based cargo condition comparison** — capturing before/after
       photos into a booking record is 🟢 buildable now; having something
       *look* at them and flag damage is 🟡.
-
-## In progress
-
-- [ ] **AI document verification** — code shipped (`vercel-blob-api/api/verify-document.js`,
-      `src/lib/ai.ts`, "AI Check" button in `admin/Compliance.tsx`), using
-      Google Gemini (chosen for its no-billing-required free tier). Blocked
-      on: a `GEMINI_API_KEY` env var on the Vercel project + redeploy, then
-      `VITE_AI_VERIFY_API_URL` in `.env`. Advisory only — never
-      auto-approves/rejects, a human admin still decides.
 
 ## 🟡 Needs an AI provider key first
 
