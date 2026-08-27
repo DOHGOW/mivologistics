@@ -104,8 +104,32 @@ Storage requires the Blaze plan. Driver document uploads now go through
       of creating a booking. Fixed by omitting the key entirely for COD
       (it's optional on the `Booking` type) instead of setting it to
       `undefined`.
+- [x] **Driver dashboard's "Available Requests" job feed has never
+      worked.** The `bookings` read rule only allowed `userId==self` or
+      `driverId==self` — but a pending booking's `driverId` is `null` and
+      its `userId` is the *customer's* uid, so no driver could ever read a
+      pending booking to browse/accept it. Fixed by adding a
+      `status=='pending' && isDriver()` read clause matching the query
+      `watchPendingBookings()` already uses.
+- [x] **Driver trip stats (`totalTrips`/`totalEarnings`) were never
+      recorded.** `ActiveTrip.tsx` tried to self-update these on every
+      delivery, but `firestore.rules` has never allowed a driver to write
+      them (correctly — they're trust/financial fields). Every completion
+      silently failed this write and showed a false "stats update failed"
+      toast, while Dashboard/Earnings always showed stale/fake values.
+      Fixed by deriving both live from delivered bookings
+      (`getDriverStats`, a `sum()`/`count()` aggregate query) instead of a
+      denormalized counter — no privileged write needed at all.
 
 ## 5. Known gaps before this is production-hardened
+
+- [ ] **Admin → Drivers list still shows stale `totalTrips`/`totalEarnings`.**
+      Same root cause as the fix above, not yet applied here:
+      `admin/Drivers.tsx:126-127` reads the DriverProfile fields directly,
+      which are never written. Fixing it properly means calling
+      `getDriverStats()` per row in the paginated list (an N+1 query
+      pattern, fine at this scale) rather than the single-driver case the
+      other two fixes covered.
 
 Carried over from the README, worth tracking explicitly:
 

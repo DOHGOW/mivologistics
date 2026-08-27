@@ -54,7 +54,9 @@ limited (fine for an MVP's volume, not for scale) and quality on Nigerian
 Pidgin/Hausa/Yoruba/Igbo is untested and likely uneven.
 
 - [ ] Driver identity liveness check (selfie match at trip start)
-- [ ] Photo-based cargo damage detection (before/after comparison)
+- [x] Photo-based cargo damage detection — done (Gemini, advisory,
+      shown on the driver's trip-completed modal). Optional capture, not
+      gating "Confirm Pickup"/"Confirm Delivery".
 - [ ] Multi-language voice/chat assistant (Pidgin/Hausa/Yoruba/Igbo)
 - [ ] AI credit-scoring model itself (the *scoring logic* — see below for
       why *offering* credit is a bigger, separate problem)
