@@ -123,6 +123,10 @@ export interface Booking {
   status: BookingStatus;
   createdAt?: Timestamp;
   scheduledAt?: Timestamp;
+  // Cargo condition photos + AI damage comparison -- see lib/ai.ts and
+  // pages/driver/ActiveTrip.tsx. Advisory only, not a binding claims record.
+  cargoPhotos?: { pickup?: string; delivery?: string };
+  cargoDamageReport?: { hasDamage: boolean; concerns: string[]; summary: string };
 }
 
 export interface Truck {

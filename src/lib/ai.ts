@@ -9,9 +9,17 @@ export interface AIDocumentVerdict {
   concerns: string[];
 }
 
+export interface CargoDamageReport {
+  hasDamage: boolean;
+  concerns: string[];
+  summary: string;
+}
+
 const AI_VERIFY_API_URL = import.meta.env.VITE_AI_VERIFY_API_URL as string | undefined;
+const AI_CARGO_DAMAGE_API_URL = import.meta.env.VITE_AI_CARGO_DAMAGE_API_URL as string | undefined;
 
 export const isAIVerificationConfigured = Boolean(AI_VERIFY_API_URL);
+export const isCargoDamageCheckConfigured = Boolean(AI_CARGO_DAMAGE_API_URL);
 
 /**
  * Advisory-only AI pre-check on a driver document (Google Gemini, called
@@ -35,4 +43,27 @@ export async function verifyDocumentWithAI(documentUrl: string, documentType: st
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error || 'AI verification failed');
   return body as AIDocumentVerdict;
+}
+
+/**
+ * Advisory-only comparison of a cargo's pickup vs. delivery photo (Google
+ * Gemini, called server-side from vercel-blob-api/api/analyze-cargo-damage.js).
+ * Meant to help a human review a damage dispute, not to settle one.
+ */
+export async function analyzeCargoDamage(pickupPhotoUrl: string, deliveryPhotoUrl: string): Promise<CargoDamageReport> {
+  if (!AI_CARGO_DAMAGE_API_URL) {
+    throw new Error('Cargo damage check is not configured — missing VITE_AI_CARGO_DAMAGE_API_URL.');
+  }
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error('You must be signed in to run this check.');
+
+  const res = await fetch(AI_CARGO_DAMAGE_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, pickupPhotoUrl, deliveryPhotoUrl }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error || 'Cargo damage check failed');
+  return body as CargoDamageReport;
 }

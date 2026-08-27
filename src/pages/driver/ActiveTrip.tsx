@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Truck,
   Gauge,
+  Camera,
+  PackageSearch,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LiveMap from '../../components/LiveMap';
@@ -21,6 +23,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLiveLocationBroadcast } from '../../hooks/useLiveLocationBroadcast';
 import { getBooking, updateBooking, updateDriverProfile, getDriverProfile, listLocationPings, type Booking } from '../../lib/firestore';
 import { computeSafetyScore, type SafetyReport } from '../../lib/safety';
+import { uploadDriverDocument } from '../../lib/storage';
+import { analyzeCargoDamage, isCargoDamageCheckConfigured, type CargoDamageReport } from '../../lib/ai';
 import { isDemoMode } from '../../firebase';
 
 type LocalStep = 'accepted' | 'arrived_pickup' | 'picked_up' | 'arrived_destination' | 'completed';
@@ -41,6 +45,11 @@ export default function ActiveTrip() {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [safetyReport, setSafetyReport] = useState<SafetyReport | null>(null);
+  const [cargoPhotos, setCargoPhotos] = useState<{ pickup?: string; delivery?: string }>({});
+  const [uploadingCargoPhoto, setUploadingCargoPhoto] = useState(false);
+  const [cargoDamageReport, setCargoDamageReport] = useState<CargoDamageReport | null>(null);
+  const cargoFileInputRef = useRef<HTMLInputElement>(null);
+  const [cargoPhotoSlot, setCargoPhotoSlot] = useState<'pickup' | 'delivery' | null>(null);
 
   const broadcasting = step === 'picked_up' || step === 'arrived_destination';
   useLiveLocationBroadcast(id, broadcasting && !isDemoMode);
@@ -52,6 +61,8 @@ export default function ActiveTrip() {
         setTrip(b);
         if (b.status === 'in-transit') setStep('picked_up');
         if (b.status === 'delivered') setStep('completed');
+        if (b.cargoPhotos) setCargoPhotos(b.cargoPhotos);
+        if (b.cargoDamageReport) setCargoDamageReport(b.cargoDamageReport);
       }
     });
   }, [id]);
@@ -93,6 +104,34 @@ export default function ActiveTrip() {
         }
       }
       setShowCompleteModal(true);
+    }
+  };
+
+  const handleCargoPhotoPicked = async (file: File) => {
+    if (!cargoPhotoSlot || !id || !user) return;
+    setUploadingCargoPhoto(true);
+    try {
+      const url = await uploadDriverDocument(user.uid, `cargo-${id}-${cargoPhotoSlot}`, file);
+      const next = { ...cargoPhotos, [cargoPhotoSlot]: url };
+      setCargoPhotos(next);
+      await updateBooking(id, { cargoPhotos: next });
+      toast.success(`${cargoPhotoSlot === 'pickup' ? 'Pickup' : 'Delivery'} cargo photo saved`);
+
+      if (next.pickup && next.delivery && isCargoDamageCheckConfigured) {
+        try {
+          const report = await analyzeCargoDamage(next.pickup, next.delivery);
+          setCargoDamageReport(report);
+          await updateBooking(id, { cargoDamageReport: report });
+        } catch {
+          // Non-fatal -- the photos are still saved even if the AI
+          // comparison itself fails (rate limit, transient error, etc).
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Photo upload failed.');
+    } finally {
+      setUploadingCargoPhoto(false);
+      setCargoPhotoSlot(null);
     }
   };
 
@@ -224,8 +263,49 @@ export default function ActiveTrip() {
               </div>
             </div>
           </div>
+
+          {(step === 'arrived_pickup' || step === 'picked_up' || step === 'arrived_destination') && (
+            <div className="mt-6 p-5 bg-gray-50 rounded-3xl border border-gray-100">
+              <div className="flex items-center gap-2 mb-3">
+                <PackageSearch className="w-4 h-4 text-[#ff8c00]" />
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  Cargo Photos <span className="normal-case font-medium text-gray-300">(optional, helps with disputes)</span>
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {(['pickup', 'delivery'] as const).map((slot) => {
+                  const disabled = slot === 'delivery' && step !== 'arrived_destination';
+                  return (
+                    <button
+                      key={slot}
+                      onClick={() => { setCargoPhotoSlot(slot); cargoFileInputRef.current?.click(); }}
+                      disabled={disabled || uploadingCargoPhoto}
+                      className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-semibold disabled:opacity-40 ${
+                        cargoPhotos[slot] ? 'bg-green-50 border-green-100 text-green-700' : 'bg-white border-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {cargoPhotos[slot] ? <CheckCircle2 className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
+                      {slot === 'pickup' ? 'At Pickup' : 'At Delivery'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </main>
+
+      <input
+        ref={cargoFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleCargoPhotoPicked(file);
+          e.target.value = '';
+        }}
+      />
 
       <footer className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-2xl z-50 pb-8 pt-4 px-6 shadow-2xl rounded-t-[2.5rem] border-t border-gray-50">
         <div className="max-w-screen-md mx-auto">
@@ -255,6 +335,23 @@ export default function ActiveTrip() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Earnings Added</p>
                 <p className="font-display font-black text-3xl text-[#ff8c00] tracking-tighter">₦{trip.price.toLocaleString()}</p>
               </div>
+
+              {cargoDamageReport && (
+                <div className={`p-6 rounded-3xl mb-6 text-left ${cargoDamageReport.hasDamage ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <PackageSearch className={`w-4 h-4 ${cargoDamageReport.hasDamage ? 'text-red-500' : 'text-green-600'}`} />
+                    <p className={`text-xs font-bold uppercase tracking-widest ${cargoDamageReport.hasDamage ? 'text-red-600' : 'text-green-700'}`}>
+                      Cargo Condition Check
+                    </p>
+                  </div>
+                  <p className={`text-sm font-medium ${cargoDamageReport.hasDamage ? 'text-red-700' : 'text-green-700'}`}>{cargoDamageReport.summary}</p>
+                  {cargoDamageReport.concerns.length > 0 && (
+                    <ul className="text-xs text-red-600 mt-2 space-y-0.5">
+                      {cargoDamageReport.concerns.map((c, i) => <li key={i}>⚠ {c}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {safetyReport && (
                 <div className="bg-blue-50 p-6 rounded-3xl mb-8 text-left">
