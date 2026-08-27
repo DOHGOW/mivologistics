@@ -59,7 +59,11 @@ Pidgin/Hausa/Yoruba/Igbo is untested and likely uneven.
 - [x] Photo-based cargo damage detection — done (Gemini, advisory,
       shown on the driver's trip-completed modal). Optional capture, not
       gating "Confirm Pickup"/"Confirm Delivery".
-- [ ] Multi-language voice/chat assistant (Pidgin/Hausa/Yoruba/Igbo)
+- [x] Multi-language chat assistant — done (Gemini). New `/assistant` page,
+      linked from Support. Verified replying in genuine Nigerian Pidgin with
+      accurate, in-context answers (payment methods, etc.), no account
+      actions claimed. Text-only for now — "voice" would need a separate
+      speech-to-text/TTS integration, not attempted here.
 - [ ] AI credit-scoring model itself (the *scoring logic* — see below for
       why *offering* credit is a bigger, separate problem)
 
