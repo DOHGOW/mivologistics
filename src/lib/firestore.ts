@@ -139,7 +139,15 @@ export interface DriverLocation {
   lat: number;
   lng: number;
   heading?: number;
+  speedKmh?: number;
   updatedAt?: Timestamp;
+}
+
+export interface LocationPing {
+  lat: number;
+  lng: number;
+  speedKmh?: number;
+  timestamp?: Timestamp;
 }
 
 export interface ChatMessage {
@@ -382,6 +390,20 @@ export function watchAllDriverLocations(cb: (locations: Record<string, DriverLoc
     snap.docs.forEach((d) => { map[d.id] = d.data() as DriverLocation; });
     cb(map);
   });
+}
+
+// Append-only history of GPS pings for one trip, used to compute a safety
+// score after the fact (see lib/safety.ts) -- the top-level driverLocations
+// doc above is overwritten on every update, so it alone can't tell you
+// anything about speed changes over the course of a trip.
+export async function pushLocationPing(bookingId: string, ping: Omit<LocationPing, 'timestamp'>) {
+  await addDoc(collection(db, 'driverLocations', bookingId, 'pings'), { ...ping, timestamp: serverTimestamp() });
+}
+
+export async function listLocationPings(bookingId: string): Promise<LocationPing[]> {
+  const q = query(collection(db, 'driverLocations', bookingId, 'pings'), orderBy('timestamp', 'asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as LocationPing);
 }
 
 // ---------------------------------------------------------------------------

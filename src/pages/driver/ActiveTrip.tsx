@@ -13,12 +13,14 @@ import {
   CheckCircle2,
   AlertCircle,
   Truck,
+  Gauge,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LiveMap from '../../components/LiveMap';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLiveLocationBroadcast } from '../../hooks/useLiveLocationBroadcast';
-import { getBooking, updateBooking, updateDriverProfile, getDriverProfile, type Booking } from '../../lib/firestore';
+import { getBooking, updateBooking, updateDriverProfile, getDriverProfile, listLocationPings, type Booking } from '../../lib/firestore';
+import { computeSafetyScore, type SafetyReport } from '../../lib/safety';
 import { isDemoMode } from '../../firebase';
 
 type LocalStep = 'accepted' | 'arrived_pickup' | 'picked_up' | 'arrived_destination' | 'completed';
@@ -38,6 +40,7 @@ export default function ActiveTrip() {
   const [step, setStep] = useState<LocalStep>('accepted');
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [safetyReport, setSafetyReport] = useState<SafetyReport | null>(null);
 
   const broadcasting = step === 'picked_up' || step === 'arrived_destination';
   useLiveLocationBroadcast(id, broadcasting && !isDemoMode);
@@ -81,6 +84,8 @@ export default function ActiveTrip() {
             totalTrips: (dp?.totalTrips || 0) + 1,
             totalEarnings: (dp?.totalEarnings || 0) + trip.price,
           });
+          const pings = await listLocationPings(id);
+          if (pings.length > 0) setSafetyReport(computeSafetyScore(pings));
         } catch {
           toast.error('Trip marked delivered, but stats update failed.');
         } finally {
@@ -246,10 +251,26 @@ export default function ActiveTrip() {
               <h2 className="font-display font-black text-3xl text-gray-900 mb-2">Trip Completed!</h2>
               <p className="text-gray-500 font-medium mb-8">You've successfully delivered the cargo to {trip.destination}.</p>
 
-              <div className="bg-gray-50 p-6 rounded-3xl mb-8">
+              <div className="bg-gray-50 p-6 rounded-3xl mb-6">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Earnings Added</p>
                 <p className="font-display font-black text-3xl text-[#ff8c00] tracking-tighter">₦{trip.price.toLocaleString()}</p>
               </div>
+
+              {safetyReport && (
+                <div className="bg-blue-50 p-6 rounded-3xl mb-8 text-left">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Gauge className="w-4 h-4 text-blue-500" />
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Trip Safety Score</p>
+                  </div>
+                  <p className="font-display font-black text-3xl text-blue-600 tracking-tighter mb-2">{safetyReport.score}/100</p>
+                  <p className="text-xs text-blue-500 font-medium">
+                    Avg {safetyReport.avgSpeedKmh} km/h, max {safetyReport.maxSpeedKmh} km/h
+                    {(safetyReport.harshSpeedEvents > 0 || safetyReport.harshBrakingEvents > 0) && (
+                      <> · {safetyReport.harshSpeedEvents} speeding, {safetyReport.harshBrakingEvents} harsh braking event(s)</>
+                    )}
+                  </p>
+                </div>
+              )}
 
               <button onClick={() => navigate('/driver/dashboard')} className="w-full bg-gray-900 text-white py-5 rounded-2xl font-display font-bold text-sm active:scale-95 transition-all">
                 Go to Dashboard

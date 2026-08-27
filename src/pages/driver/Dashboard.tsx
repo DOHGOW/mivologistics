@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   FileText,
   ShieldAlert,
+  Flame,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,6 +30,9 @@ import {
   type Booking,
   type DriverProfile,
 } from '../../lib/firestore';
+import { distanceKm } from '../../lib/geocode';
+
+const BACKHAUL_RADIUS_KM = 15;
 
 const DEMO_JOBS: Booking[] = [
   { id: 'MV-9021', userId: 'u1', userName: 'Oluwaseun A.', truckId: '2', truckName: 'Medium', pickupLocation: 'Ikeja City Mall, Lagos', pickupCoords: { lat: 6.6, lng: 3.35 }, destination: 'Lekki Phase 1, Lagos', destinationCoords: { lat: 6.45, lng: 3.47 }, distanceKm: 18.5, price: 12500, paymentStatus: 'paid', status: 'pending' },
@@ -43,6 +47,7 @@ export default function DriverDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [jobs, setJobs] = useState<Booking[]>(isDemoMode ? DEMO_JOBS : []);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [driverPos, setDriverPos] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (isDemoMode || !user) return;
@@ -58,7 +63,27 @@ export default function DriverDashboard() {
     return () => unsub();
   }, []);
 
+  // One-off backhaul matching: when the driver goes online, grab a single
+  // position fix (free -- browser geolocation, no API cost) and use it to
+  // sort/highlight the nearest pending jobs, so a driver who just dropped
+  // off cargo sees return-leg work near them instead of an arbitrary list.
+  useEffect(() => {
+    if (isDemoMode || !isOnline || !('geolocation' in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setDriverPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {}, // permission denied or unavailable -- jobs just show in default order
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 }
+    );
+  }, [isOnline]);
+
   const isVerified = isDemoMode || driverProfile?.isVerified;
+
+  const jobsWithDistance = jobs
+    .map((job) => ({
+      ...job,
+      distanceFromDriver: driverPos && job.pickupCoords ? distanceKm(driverPos, job.pickupCoords) : undefined,
+    }))
+    .sort((a, b) => (a.distanceFromDriver ?? Infinity) - (b.distanceFromDriver ?? Infinity));
 
   const toggleOnline = async () => {
     const next = !isOnline;
@@ -215,10 +240,18 @@ export default function DriverDashboard() {
               Go online to start seeing job requests.
             </div>
           )}
-          {isOnline && isVerified && jobs.map((job) => (
+          {isOnline && isVerified && jobsWithDistance.map((job) => {
+            const isBackhaul = job.distanceFromDriver != null && job.distanceFromDriver <= BACKHAUL_RADIUS_KM;
+            return (
             <motion.div key={job.id} whileHover={{ scale: 1.01 }} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
               <div className="relative z-10">
+                {isBackhaul && (
+                  <div className="inline-flex items-center gap-1.5 bg-orange-50 text-[#ff8c00] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">
+                    <Flame className="w-3 h-3" />
+                    Backhaul Match · {job.distanceFromDriver!.toFixed(1)} km from you
+                  </div>
+                )}
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400">
@@ -260,7 +293,8 @@ export default function DriverDashboard() {
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       </main>
 

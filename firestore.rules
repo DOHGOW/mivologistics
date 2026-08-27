@@ -160,6 +160,15 @@ service cloud.firestore {
     match /driverLocations/{bookingId} {
       allow read: if isBookingParty(bookingId) || isAdmin();
       allow write: if isAuthenticated() && bookingOf(bookingId).driverId == request.auth.uid;
+
+      // Append-only ping history for post-trip safety scoring (see
+      // lib/safety.ts) -- same access as the live doc above, but pings are
+      // never updated or deleted once written.
+      match /pings/{pingId} {
+        allow read: if isBookingParty(bookingId) || isAdmin();
+        allow create: if isAuthenticated() && bookingOf(bookingId).driverId == request.auth.uid;
+        allow update, delete: if false;
+      }
     }
 
     // ===============================================================
