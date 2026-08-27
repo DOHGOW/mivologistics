@@ -21,12 +21,13 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
 
 ## 🟢 Buildable now
 
-- [ ] **Backhaul/return-load matching** — surface bookings whose destination
-      is near a driver's current drop-off point, so return legs aren't
-      empty. Pure logic over the existing `bookings` collection.
-- [ ] **Driver behavior/trust scoring** — compute a basic score (speed
-      spikes, erratic route deviation) from the `driverLocations` pings
-      already being written during live tracking. No new data source.
+- [x] **Backhaul/return-load matching** — done. Driver Dashboard grabs one
+      free geolocation fix on going online, sorts pending jobs by distance
+      from the driver, and badges ones within 15km as a Backhaul Match.
+- [x] **Driver behavior/trust scoring** — done. `lib/safety.ts` computes a
+      0-100 score from GPS speed samples (harsh speeding/braking), now
+      logged per-trip to a new `driverLocations/{bookingId}/pings`
+      subcollection and shown on the trip-completed modal.
 - [x] **Document persistence for review** — done (see above). The "AI" part
       (OCR/forgery detection) is still 🟡, see below.
 - [ ] **Photo-based cargo condition comparison** — capturing before/after
@@ -36,7 +37,15 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
 ## 🟡 Needs an AI provider key first
 
 These all need a vision/LLM API — none is currently wired into this app.
-Tell me which provider (Claude, OpenAI, etc.) and I'll wire it in.
+Given the free/free-tier constraint (this is a startup, and this project's
+Google Cloud billing is already blocked — see the Storage section of
+LAUNCH_CHECKLIST.md), **Google Gemini via AI Studio is the pick**: its free
+tier needs no billing account at all (unlike Google Cloud Vision, OpenAI, or
+Claude, which either require billing enabled or have no ongoing free tier),
+and it supports image input — covering both OCR-style document checks and
+photo damage comparison from one provider. Trade-off: free tier is rate
+limited (fine for an MVP's volume, not for scale) and quality on Nigerian
+Pidgin/Hausa/Yoruba/Igbo is untested and likely uneven.
 
 - [ ] AI document verification (OCR + expiry/forgery flags on license,
       insurance, registration, permit)
@@ -80,8 +89,8 @@ Flagging these plainly rather than quietly building a fake version:
 
 ## Suggested order
 
-1. Backhaul matching (🟢, high value, no dependencies) — next up
-2. Driver behavior scoring from existing GPS data (🟢)
+1. ~~Backhaul matching~~ — done
+2. ~~Driver behavior scoring~~ — done
 3. ~~Fix document-URL persistence~~ — done
 4. Everything else, sequenced once the 🟡/🔴 blockers are resolved (needs an
    AI provider decision, or a vendor/infra decision — see above)
