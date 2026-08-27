@@ -30,6 +30,7 @@ import Settings from './pages/Settings';
 import History from './pages/History';
 import Notifications from './pages/Notifications';
 import Support from './pages/Support';
+import AIAssistant from './pages/AIAssistant';
 import Chat from './pages/Chat';
 import Call from './pages/Call';
 import Wallet from './pages/Wallet';
@@ -97,6 +98,7 @@ function PageTransition() {
           <Route path="/history" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><History /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute allow={['user', 'driver', 'admin']} redirectTo="/auth"><Notifications /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute allow={['user', 'driver']} redirectTo="/auth"><Support /></ProtectedRoute>} />
+          <Route path="/assistant" element={<ProtectedRoute allow={['user', 'driver']} redirectTo="/auth"><AIAssistant /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute allow={['user', 'driver']} redirectTo="/auth"><Chat /></ProtectedRoute>} />
           <Route path="/call" element={<ProtectedRoute allow={['user', 'driver']} redirectTo="/auth"><Call /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><Wallet /></ProtectedRoute>} />

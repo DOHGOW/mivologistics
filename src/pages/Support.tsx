@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, Phone, Search, ChevronRight, HelpCircle, FileText, Shield } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Phone, Search, ChevronRight, HelpCircle, FileText, Shield, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Support() {
@@ -32,6 +32,20 @@ export default function Support() {
       </header>
 
       <main className="max-w-screen-md mx-auto px-6 pt-8">
+        <button
+          onClick={() => navigate('/assistant')}
+          className="w-full bg-gradient-to-br from-[#904d00] to-[#ff8c00] rounded-[2rem] p-6 mb-6 text-left flex items-center gap-4 shadow-xl shadow-orange-100 active:scale-[0.98] transition-all"
+        >
+          <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shrink-0">
+            <Sparkles className="w-7 h-7" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-display font-bold text-white text-lg">Ask Mivo Assistant</h3>
+            <p className="text-white/80 text-xs font-medium">Instant AI answers, in English, Pidgin, Hausa, Yoruba, or Igbo</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-white/70 shrink-0" />
+        </button>
+
         <div className="grid grid-cols-2 gap-4 mb-10">
           <button 
             onClick={() => window.open('mailto:support@mivo.app?subject=Support Request')}

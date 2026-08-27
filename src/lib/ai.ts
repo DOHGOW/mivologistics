@@ -21,13 +21,20 @@ export interface IdentityCheckResult {
   notes: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 const AI_VERIFY_API_URL = import.meta.env.VITE_AI_VERIFY_API_URL as string | undefined;
 const AI_CARGO_DAMAGE_API_URL = import.meta.env.VITE_AI_CARGO_DAMAGE_API_URL as string | undefined;
 const AI_IDENTITY_CHECK_API_URL = import.meta.env.VITE_AI_IDENTITY_CHECK_API_URL as string | undefined;
+const AI_CHAT_API_URL = import.meta.env.VITE_AI_CHAT_API_URL as string | undefined;
 
 export const isAIVerificationConfigured = Boolean(AI_VERIFY_API_URL);
 export const isCargoDamageCheckConfigured = Boolean(AI_CARGO_DAMAGE_API_URL);
 export const isIdentityCheckConfigured = Boolean(AI_IDENTITY_CHECK_API_URL);
+export const isChatAssistantConfigured = Boolean(AI_CHAT_API_URL);
 
 /**
  * Advisory-only AI pre-check on a driver document (Google Gemini, called
@@ -99,4 +106,28 @@ export async function verifyDriverIdentity(selfieUrl: string, licenseUrl: string
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error || 'Identity check failed');
   return body as IdentityCheckResult;
+}
+
+/**
+ * Multi-language support chatbot (Google Gemini, called server-side from
+ * vercel-blob-api/api/chat-assistant.js). Replies in whatever language the
+ * user writes in, including Nigerian Pidgin/Hausa/Yoruba/Igbo. Can't take
+ * real actions on the account -- points the user to real support for those.
+ */
+export async function askAssistant(messages: ChatMessage[]): Promise<string> {
+  if (!AI_CHAT_API_URL) {
+    throw new Error('The AI assistant is not configured — missing VITE_AI_CHAT_API_URL.');
+  }
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error('You must be signed in to use the assistant.');
+
+  const res = await fetch(AI_CHAT_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, messages }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error || 'Assistant request failed');
+  return body.reply as string;
 }
