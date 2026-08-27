@@ -72,11 +72,27 @@ Storage requires the Blaze plan. Driver document uploads now go through
       distance calc, real Firestore write, real navigation to
       booking-success). This surfaced and fixed two launch-blocking bugs —
       see below. Re-verified passing after both fixes; redeployed.
-- [ ] Still not covered by the deeper pass: chat, live tracking map, and
-      admin actions (approving a driver, dispatch). Those need either your
-      admin session or two simultaneous roles (customer + driver on one
-      trip) to exercise properly — worth a manual pass. Payment checkout
-      (Paystack/Flutterwave) is intentionally deferred to the Payments step.
+- [x] **Chat and live tracking** — tested end-to-end with two simultaneous
+      real sessions (a customer and a driver on the same live booking, real
+      Firestore, real geolocation-mocked live position updates). Customer
+      → `/tracking` correctly showed the driver's name, live "In Transit"
+      status, computed ETA/remaining distance, and the route line. Chat was
+      verified bidirectional and real-time in both directions (customer →
+      driver and driver → customer, via `watchChatMessages` onSnapshot).
+      Zero console errors.
+- [x] **Admin dispatch (`admin/Dispatch.tsx`)** — code-reviewed rather than
+      live-tested (needs an actual admin session, which this session
+      doesn't hold your password for). `watchPendingBookings()` and
+      `listOnlineDrivers()` both match rules that already grant `isAdmin()`
+      unconditional access regardless of query shape, and `handleAssign()`'s
+      write has no undefined-field risk — looks correct. One pre-existing,
+      minor gap noticed while reading it: neither Dispatch's manual assign
+      nor Dashboard's driver self-accept checks that a booking hasn't
+      already been claimed by someone else first — a benign last-write-wins
+      race under concurrent load, not a crash. Worth a Firestore transaction
+      someday, not urgent at current scale.
+- Payment checkout (Paystack/Flutterwave) is intentionally deferred to the
+  Payments step.
 - Note: there is no automated test suite in this repo — verification above
   was one-off scripted smoke testing, not a repeatable suite.
 
@@ -123,13 +139,10 @@ Storage requires the Blaze plan. Driver document uploads now go through
 
 ## 5. Known gaps before this is production-hardened
 
-- [ ] **Admin → Drivers list still shows stale `totalTrips`/`totalEarnings`.**
-      Same root cause as the fix above, not yet applied here:
-      `admin/Drivers.tsx:126-127` reads the DriverProfile fields directly,
-      which are never written. Fixing it properly means calling
-      `getDriverStats()` per row in the paginated list (an N+1 query
-      pattern, fine at this scale) rather than the single-driver case the
-      other two fixes covered.
+- [x] **Admin → Drivers list showed stale `totalTrips`/`totalEarnings`.**
+      Fixed — now fetches `getDriverStats()` per row (keyed by uid, fetched
+      once, with a skeleton loader while pending) instead of reading the
+      DriverProfile fields that are never actually written.
 
 Carried over from the README, worth tracking explicitly:
 
