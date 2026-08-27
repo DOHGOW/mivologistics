@@ -53,7 +53,9 @@ photo damage comparison from one provider. Trade-off: free tier is rate
 limited (fine for an MVP's volume, not for scale) and quality on Nigerian
 Pidgin/Hausa/Yoruba/Igbo is untested and likely uneven.
 
-- [ ] Driver identity liveness check (selfie match at trip start)
+- [x] Driver identity liveness check — done (Gemini, advisory, optional
+      selfie-vs-license comparison at trip start). Explicitly framed as not
+      a biometric/legal determination, doesn't gate trip progression.
 - [x] Photo-based cargo damage detection — done (Gemini, advisory,
       shown on the driver's trip-completed modal). Optional capture, not
       gating "Confirm Pickup"/"Confirm Delivery".
