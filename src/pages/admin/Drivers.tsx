@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Truck, Star, CheckCircle2, Ban, FileWarning } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
-import { listDriversPage, updateDriverProfile, type DriverProfile } from '../../lib/firestore';
+import { listDriversPage, updateDriverProfile, getDriverStats, type DriverProfile } from '../../lib/firestore';
 import { isDemoMode } from '../../firebase';
 import Pagination from '../../components/Pagination';
 
@@ -22,6 +22,24 @@ export default function AdminDrivers() {
     (pageSize, cursor) => listDriversPage(pageSize, cursor),
     10
   );
+
+  // totalTrips/totalEarnings on DriverProfile are never actually written
+  // (firestore.rules doesn't let a driver self-update them) -- derive the
+  // real numbers per row, live, from delivered bookings instead. Keyed by
+  // uid and only fetched once per driver so paging back and forth doesn't
+  // re-fetch what's already known.
+  const [driverStats, setDriverStats] = useState<Record<string, { totalTrips: number; totalEarnings: number }>>({});
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    const toFetch = items.filter((d) => !(d.uid in driverStats));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((d) => {
+      getDriverStats(d.uid).then((stats) => {
+        setDriverStats((prev) => ({ ...prev, [d.uid]: stats }));
+      });
+    });
+  }, [items]);
 
   const drivers = (isDemoMode ? DEMO_DRIVERS : items).filter((d) =>
     !searchQuery.trim() || d.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || d.plateNumber.toLowerCase().includes(searchQuery.toLowerCase())
@@ -122,10 +140,22 @@ export default function AdminDrivers() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-gray-900">₦{driver.totalEarnings.toLocaleString()}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{driver.totalTrips} Trips</p>
-                      </div>
+                      {isDemoMode ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-gray-900">₦{driver.totalEarnings.toLocaleString()}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{driver.totalTrips} Trips</p>
+                        </div>
+                      ) : driverStats[driver.uid] ? (
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-gray-900">₦{driverStats[driver.uid].totalEarnings.toLocaleString()}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{driverStats[driver.uid].totalTrips} Trips</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 animate-pulse">
+                          <div className="h-4 w-16 bg-gray-100 rounded" />
+                          <div className="h-3 w-12 bg-gray-100 rounded" />
+                        </div>
+                      )}
                     </td>
                     <td className="px-8 py-6">
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${statusColor(driver)}`}>
