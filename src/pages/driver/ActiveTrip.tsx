@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import LiveMap from '../../components/LiveMap';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLiveLocationBroadcast } from '../../hooks/useLiveLocationBroadcast';
-import { getBooking, updateBooking, updateDriverProfile, getDriverProfile, listLocationPings, type Booking } from '../../lib/firestore';
+import { getBooking, updateBooking, listLocationPings, type Booking } from '../../lib/firestore';
 import { computeSafetyScore, type SafetyReport } from '../../lib/safety';
 import { uploadDriverDocument } from '../../lib/storage';
 import { analyzeCargoDamage, isCargoDamageCheckConfigured, type CargoDamageReport } from '../../lib/ai';
@@ -90,11 +90,10 @@ export default function ActiveTrip() {
         setSaving(true);
         try {
           await updateBooking(id, { status: 'delivered' });
-          const dp = await getDriverProfile(user.uid);
-          await updateDriverProfile(user.uid, {
-            totalTrips: (dp?.totalTrips || 0) + 1,
-            totalEarnings: (dp?.totalEarnings || 0) + trip.price,
-          });
+          // totalTrips/totalEarnings are derived live from delivered
+          // bookings (see lib/firestore.ts getDriverStats) rather than
+          // written here -- firestore.rules doesn't let a driver
+          // self-update those fields, by design.
           const pings = await listLocationPings(id);
           if (pings.length > 0) setSafetyReport(computeSafetyScore(pings));
         } catch {

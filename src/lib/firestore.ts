@@ -15,6 +15,7 @@ import {
   getAggregateFromServer,
   sum,
   average,
+  count,
   query,
   where,
   orderBy,
@@ -547,6 +548,17 @@ export interface BookingStatusCounts {
   'in-transit': number;
   delivered: number;
   cancelled: number;
+}
+
+// Trip count and earnings are derived live from delivered bookings rather
+// than a denormalized counter on DriverProfile -- firestore.rules doesn't
+// let a driver self-update totalTrips/totalEarnings (correctly: they're
+// trust/financial fields), so a client-side counter update would always be
+// rejected. Deriving them from `bookings` needs no privileged write at all.
+export async function getDriverStats(driverId: string): Promise<{ totalTrips: number; totalEarnings: number }> {
+  const q = query(collection(db, 'bookings'), where('driverId', '==', driverId), where('status', '==', 'delivered'));
+  const snap = await getAggregateFromServer(q, { totalTrips: count(), totalEarnings: sum('price') });
+  return { totalTrips: snap.data().totalTrips, totalEarnings: snap.data().totalEarnings };
 }
 
 export async function getBookingStatusCounts(): Promise<BookingStatusCounts> {

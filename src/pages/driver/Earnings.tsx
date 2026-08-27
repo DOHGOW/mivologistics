@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, TrendingUp, Wallet, ArrowDownLeft, Truck, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDriverProfile, listDriverBookingsPage, type DriverProfile, type Booking } from '../../lib/firestore';
+import { getDriverStats, listDriverBookingsPage, type Booking } from '../../lib/firestore';
 import { isDemoMode } from '../../firebase';
 
-const DEMO_PROFILE: Partial<DriverProfile> = { totalEarnings: 124500, totalTrips: 14, rating: 4.9 };
+const DEMO_STATS = { totalEarnings: 124500, totalTrips: 14 };
 const DEMO_TX: Booking[] = [
   { id: 'MV-9021', userId: 'u1', userName: 'Oluwaseun A.', truckId: '2', truckName: 'Medium', pickupLocation: '', pickupCoords: { lat: 0, lng: 0 }, destination: '', destinationCoords: { lat: 0, lng: 0 }, distanceKm: 0, price: 12500, paymentStatus: 'paid', status: 'delivered' },
   { id: 'MV-9018', userId: 'u2', userName: 'Chidi E.', truckId: '3', truckName: 'Large', pickupLocation: '', pickupCoords: { lat: 0, lng: 0 }, destination: '', destinationCoords: { lat: 0, lng: 0 }, distanceKm: 0, price: 25000, paymentStatus: 'paid', status: 'delivered' },
@@ -15,17 +15,20 @@ const DEMO_TX: Booking[] = [
 export default function DriverEarnings() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [profile, setProfile] = useState<Partial<DriverProfile>>(isDemoMode ? DEMO_PROFILE : {});
+  const [stats, setStats] = useState(isDemoMode ? DEMO_STATS : { totalEarnings: 0, totalTrips: 0 });
   const [transactions, setTransactions] = useState<Booking[]>(isDemoMode ? DEMO_TX : []);
 
   useEffect(() => {
     if (isDemoMode || !user) return;
-    getDriverProfile(user.uid).then((p) => p && setProfile(p));
+    // totalTrips/totalEarnings are derived live from delivered bookings --
+    // DriverProfile's own copies of these fields are never actually
+    // written (firestore.rules doesn't allow a driver to self-update them).
+    getDriverStats(user.uid).then(setStats);
     listDriverBookingsPage(user.uid, 10).then((res) => setTransactions(res.items.filter((b) => b.status === 'delivered')));
   }, [user]);
 
-  const totalEarnings = profile.totalEarnings || 0;
-  const avgPerTrip = profile.totalTrips ? Math.round(totalEarnings / profile.totalTrips) : 0;
+  const totalEarnings = stats.totalEarnings;
+  const avgPerTrip = stats.totalTrips ? Math.round(totalEarnings / stats.totalTrips) : 0;
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] pb-12">
@@ -64,7 +67,7 @@ export default function DriverEarnings() {
               <ArrowDownLeft className="w-5 h-5" />
             </div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Trips Completed</p>
-            <p className="font-display font-black text-xl text-gray-900 tracking-tight">{profile.totalTrips || 0}</p>
+            <p className="font-display font-black text-xl text-gray-900 tracking-tight">{stats.totalTrips}</p>
           </div>
           <div className="bg-white p-6 rounded-[2rem] border border-gray-50 shadow-sm">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">

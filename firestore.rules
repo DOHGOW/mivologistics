@@ -130,8 +130,15 @@ service cloud.firestore {
     // ===============================================================
 
     match /bookings/{bookingId} {
+      // Any signed-in driver can browse pending (unassigned) bookings --
+      // this is the job feed on the driver dashboard, and a pending
+      // booking's driverId is null, so neither of the other two clauses
+      // would ever let a driver see one to accept it otherwise.
       allow read: if isAuthenticated()
-        && (resource.data.userId == request.auth.uid || resource.data.driverId == request.auth.uid || isAdmin());
+        && (resource.data.userId == request.auth.uid
+            || resource.data.driverId == request.auth.uid
+            || isAdmin()
+            || (resource.data.status == 'pending' && isDriver()));
 
       allow create: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid
