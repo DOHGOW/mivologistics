@@ -16,15 +16,20 @@ import {
   Gauge,
   Camera,
   PackageSearch,
+  ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LiveMap from '../../components/LiveMap';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLiveLocationBroadcast } from '../../hooks/useLiveLocationBroadcast';
-import { getBooking, updateBooking, listLocationPings, type Booking } from '../../lib/firestore';
+import { getBooking, updateBooking, getDriverProfile, listLocationPings, type Booking } from '../../lib/firestore';
 import { computeSafetyScore, type SafetyReport } from '../../lib/safety';
 import { uploadDriverDocument } from '../../lib/storage';
-import { analyzeCargoDamage, isCargoDamageCheckConfigured, type CargoDamageReport } from '../../lib/ai';
+import {
+  analyzeCargoDamage, isCargoDamageCheckConfigured, type CargoDamageReport,
+  verifyDriverIdentity, isIdentityCheckConfigured, type IdentityCheckResult,
+} from '../../lib/ai';
 import { isDemoMode } from '../../firebase';
 
 type LocalStep = 'accepted' | 'arrived_pickup' | 'picked_up' | 'arrived_destination' | 'completed';
@@ -50,6 +55,10 @@ export default function ActiveTrip() {
   const [cargoDamageReport, setCargoDamageReport] = useState<CargoDamageReport | null>(null);
   const cargoFileInputRef = useRef<HTMLInputElement>(null);
   const [cargoPhotoSlot, setCargoPhotoSlot] = useState<'pickup' | 'delivery' | null>(null);
+  const [licenseUrl, setLicenseUrl] = useState<string | null>(null);
+  const [identityResult, setIdentityResult] = useState<IdentityCheckResult | null>(null);
+  const [uploadingSelfie, setUploadingSelfie] = useState(false);
+  const selfieFileInputRef = useRef<HTMLInputElement>(null);
 
   const broadcasting = step === 'picked_up' || step === 'arrived_destination';
   useLiveLocationBroadcast(id, broadcasting && !isDemoMode);
@@ -66,6 +75,29 @@ export default function ActiveTrip() {
       }
     });
   }, [id]);
+
+  useEffect(() => {
+    if (!user || isDemoMode) return;
+    getDriverProfile(user.uid).then((p) => {
+      if (p?.documents?.license) setLicenseUrl(p.documents.license);
+    });
+  }, [user]);
+
+  const handleSelfiePicked = async (file: File) => {
+    if (!id || !user || !licenseUrl) return;
+    setUploadingSelfie(true);
+    try {
+      const selfieUrl = await uploadDriverDocument(user.uid, `selfie-${id}`, file);
+      if (isIdentityCheckConfigured) {
+        const result = await verifyDriverIdentity(selfieUrl, licenseUrl);
+        setIdentityResult(result);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Identity check failed.');
+    } finally {
+      setUploadingSelfie(false);
+    }
+  };
 
   const handleNextStep = async () => {
     if (step === 'accepted') { setStep('arrived_pickup'); return; }
@@ -246,6 +278,31 @@ export default function ActiveTrip() {
             </div>
           </div>
 
+          {step === 'accepted' && licenseUrl && isIdentityCheckConfigured && (
+            <div className="mb-6 p-5 bg-blue-50 rounded-3xl border border-blue-100">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="w-4 h-4 text-blue-500" />
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                  Verify It's You <span className="normal-case font-medium text-blue-300">(optional)</span>
+                </p>
+              </div>
+              {!identityResult ? (
+                <button
+                  onClick={() => selfieFileInputRef.current?.click()}
+                  disabled={uploadingSelfie}
+                  className="w-full mt-1 py-3 rounded-2xl bg-white border border-blue-100 text-blue-600 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {uploadingSelfie ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                  Take a Selfie
+                </button>
+              ) : (
+                <p className={`text-sm font-medium ${identityResult.likelySamePerson ? 'text-blue-700' : 'text-red-600'}`}>
+                  {identityResult.likelySamePerson ? '✓' : '⚠'} {identityResult.notes} ({identityResult.confidence} confidence)
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 p-5 bg-gray-50 rounded-3xl border border-gray-100">
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Distance</p>
@@ -302,6 +359,19 @@ export default function ActiveTrip() {
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleCargoPhotoPicked(file);
+          e.target.value = '';
+        }}
+      />
+
+      <input
+        ref={selfieFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleSelfiePicked(file);
           e.target.value = '';
         }}
       />
