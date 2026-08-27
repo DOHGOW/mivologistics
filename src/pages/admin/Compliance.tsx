@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCheck, CheckCircle2, XCircle, ChevronDown, FileText, ImageOff } from 'lucide-react';
+import { ArrowLeft, UserCheck, CheckCircle2, XCircle, ChevronDown, FileText, ImageOff, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { listDriversPage, updateDriverProfile, type DriverProfile } from '../../lib/firestore';
+import { verifyDocumentWithAI, isAIVerificationConfigured, type AIDocumentVerdict } from '../../lib/ai';
 import { isDemoMode } from '../../firebase';
 
 const DEMO_QUEUE: DriverProfile[] = [
@@ -149,9 +150,9 @@ export default function AdminCompliance() {
 
                       <section>
                         <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Documents</h5>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="space-y-3">
                           {DOC_FIELDS.map((f) => (
-                            <div key={f.field}><DocTile label={f.label} url={driver.documents?.[f.field]} /></div>
+                            <div key={f.field}><DocumentReviewRow label={f.label} url={driver.documents?.[f.field]} documentType={f.field} /></div>
                           ))}
                         </div>
                       </section>
@@ -194,16 +195,77 @@ function ImageTile({ label, url }: { label: string; url?: string }) {
   );
 }
 
-function DocTile({ label, url }: { label: string; url?: string }) {
+function DocumentReviewRow({ label, url, documentType }: { label: string; url?: string; documentType: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [verdict, setVerdict] = useState<AIDocumentVerdict | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runCheck = async () => {
+    if (!url) return;
+    setState('loading');
+    try {
+      const result = await verifyDocumentWithAI(url, documentType);
+      setVerdict(result);
+      setState('done');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Check failed');
+      setState('error');
+    }
+  };
+
   return (
-    <a
-      href={url || undefined}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`flex items-center gap-2 bg-white rounded-2xl p-3 border ${url ? 'border-green-100 text-gray-900' : 'border-gray-100 text-gray-300 pointer-events-none'}`}
-    >
-      <FileText className={`w-4 h-4 shrink-0 ${url ? 'text-green-500' : 'text-gray-300'}`} />
-      <span className="text-xs font-semibold truncate">{label}</span>
-    </a>
+    <div className={`rounded-2xl border p-4 ${url ? 'bg-white border-gray-100' : 'bg-gray-100/50 border-gray-100'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <a
+          href={url || undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-2 min-w-0 ${url ? 'text-gray-900' : 'text-gray-300 pointer-events-none'}`}
+        >
+          <FileText className={`w-4 h-4 shrink-0 ${url ? 'text-green-500' : 'text-gray-300'}`} />
+          <span className="text-xs font-semibold truncate">{label}</span>
+        </a>
+        {url && isAIVerificationConfigured && (
+          <button
+            onClick={runCheck}
+            disabled={state === 'loading'}
+            className="shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-purple-600 bg-purple-50 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+          >
+            {state === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            AI Check
+          </button>
+        )}
+      </div>
+
+      {state === 'error' && <p className="text-[11px] text-red-500 font-medium mt-2">{error}</p>}
+
+      {state === 'done' && verdict && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5 text-[11px]">
+          <VerdictLine ok={verdict.documentTypeMatches} label="Looks like the right document type" />
+          <VerdictLine ok={verdict.readable} label="Clearly readable" />
+          {verdict.extractedName && (
+            <p className="text-gray-500">Name on document: <span className="font-semibold text-gray-700">{verdict.extractedName}</span></p>
+          )}
+          {verdict.expiryDate && (
+            <p className={verdict.isExpired ? 'text-red-500 font-semibold' : 'text-gray-500'}>
+              Expiry: {verdict.expiryDate}{verdict.isExpired ? ' (expired)' : ''}
+            </p>
+          )}
+          {verdict.concerns.length > 0 && (
+            <ul className="text-orange-600 space-y-0.5 mt-1">
+              {verdict.concerns.map((c, i) => <li key={i}>⚠ {c}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VerdictLine({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <p className={`flex items-center gap-1.5 font-medium ${ok ? 'text-green-600' : 'text-red-500'}`}>
+      {ok ? '✓' : '✕'} {label}
+    </p>
   );
 }

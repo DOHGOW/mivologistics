@@ -34,6 +34,15 @@ as of 2026-08-26. Each item is tagged with what it actually needs, since
       photos into a booking record is 🟢 buildable now; having something
       *look* at them and flag damage is 🟡.
 
+## In progress
+
+- [ ] **AI document verification** — code shipped (`vercel-blob-api/api/verify-document.js`,
+      `src/lib/ai.ts`, "AI Check" button in `admin/Compliance.tsx`), using
+      Google Gemini (chosen for its no-billing-required free tier). Blocked
+      on: a `GEMINI_API_KEY` env var on the Vercel project + redeploy, then
+      `VITE_AI_VERIFY_API_URL` in `.env`. Advisory only — never
+      auto-approves/rejects, a human admin still decides.
+
 ## 🟡 Needs an AI provider key first
 
 These all need a vision/LLM API — none is currently wired into this app.
@@ -47,8 +56,6 @@ photo damage comparison from one provider. Trade-off: free tier is rate
 limited (fine for an MVP's volume, not for scale) and quality on Nigerian
 Pidgin/Hausa/Yoruba/Igbo is untested and likely uneven.
 
-- [ ] AI document verification (OCR + expiry/forgery flags on license,
-      insurance, registration, permit)
 - [ ] Driver identity liveness check (selfie match at trip start)
 - [ ] Photo-based cargo damage detection (before/after comparison)
 - [ ] Multi-language voice/chat assistant (Pidgin/Hausa/Yoruba/Igbo)

@@ -118,6 +118,21 @@ app:
 If `VITE_BLOB_UPLOAD_API_URL` is left blank, the rest of the app works
 normally — only document upload is disabled.
 
+### Optional: AI document pre-check (Google Gemini, free)
+
+Admin → Compliance can run an advisory AI pre-check on an uploaded document
+(readable? right document type? expired? name mismatch?) before a human
+makes the final call — it never auto-approves or rejects on its own.
+
+1. Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   (no billing account required, unlike Google Cloud Vision).
+2. Add `GEMINI_API_KEY` to the same Vercel project from the step above
+   (Settings → Environment Variables), then redeploy.
+3. Set `VITE_AI_VERIFY_API_URL` in `.env` to `<vercel-project-url>/api/verify-document`.
+
+Leave `VITE_AI_VERIFY_API_URL` blank to hide the "AI Check" button entirely
+— nothing else in the app depends on it.
+
 ## 4. Run locally
 
 ```bash
