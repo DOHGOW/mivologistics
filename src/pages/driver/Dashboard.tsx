@@ -28,6 +28,7 @@ import {
   updateDriverProfile,
   getDriverProfile,
   getDriverStats,
+  getDriverRating,
   type Booking,
   type DriverProfile,
 } from '../../lib/firestore';
@@ -45,6 +46,7 @@ export default function DriverDashboard() {
   const { user, profile, isDemoMode: demo } = useAuth();
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverStats, setDriverStats] = useState<{ totalTrips: number; totalEarnings: number } | null>(null);
+  const [driverRating, setDriverRating] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [jobs, setJobs] = useState<Booking[]>(isDemoMode ? DEMO_JOBS : []);
@@ -61,6 +63,9 @@ export default function DriverDashboard() {
     // (firestore.rules doesn't allow a driver to self-update them) -- derive
     // the real numbers live from delivered bookings instead.
     getDriverStats(user.uid).then(setDriverStats);
+    // DriverProfile.rating is never actually written -- derive it live
+    // from the reviews collection instead.
+    getDriverRating(user.uid).then((r) => setDriverRating(r.rating || 4.9));
   }, [user]);
 
   useEffect(() => {
@@ -124,7 +129,7 @@ export default function DriverDashboard() {
   const stats = [
     { label: 'Total Earnings', value: `₦${(isDemoMode ? 45000 : driverStats?.totalEarnings ?? 0).toLocaleString()}`, icon: <Wallet className="w-5 h-5" />, color: 'text-green-600 bg-green-50' },
     { label: 'Trips Completed', value: String(isDemoMode ? 12 : driverStats?.totalTrips ?? 0), icon: <Truck className="w-5 h-5" />, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Rating', value: (driverProfile?.rating || 4.9).toFixed(1), icon: <Star className="w-5 h-5" />, color: 'text-orange-600 bg-orange-50' },
+    { label: 'Rating', value: (driverRating ?? 4.9).toFixed(1), icon: <Star className="w-5 h-5" />, color: 'text-orange-600 bg-orange-50' },
   ];
 
   return (
@@ -325,7 +330,7 @@ export default function DriverDashboard() {
                     <h2 className="font-display text-xl font-bold text-gray-900">{profile?.displayName || 'Driver'}</h2>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-[#ff8c00] bg-orange-50 px-2 py-0.5 rounded">{isVerified ? 'Verified Driver' : 'Pending'}</span>
-                      <span className="text-xs font-medium text-gray-400">★ {(driverProfile?.rating || 4.9).toFixed(1)}</span>
+                      <span className="text-xs font-medium text-gray-400">★ {(driverRating ?? 4.9).toFixed(1)}</span>
                     </div>
                   </div>
                 </div>

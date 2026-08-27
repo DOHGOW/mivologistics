@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Edit2, Settings, Shield, CreditCard, Bell, HelpCircle, LogOut, ChevronRight, Truck, Star, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { logout, isDemoMode } from '../firebase';
-import { countUserBookings, getDriverProfile } from '../lib/firestore';
+import { countUserBookings, getDriverStats, getDriverRating } from '../lib/firestore';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -13,7 +13,11 @@ export default function Profile() {
   useEffect(() => {
     if (isDemoMode || !user || !profile) return;
     if (profile.role === 'driver') {
-      getDriverProfile(user.uid).then((d) => d && setStat({ trips: d.totalTrips, rating: d.rating }));
+      // DriverProfile's own totalTrips/rating fields are never actually
+      // written -- derive both live from delivered bookings / reviews.
+      Promise.all([getDriverStats(user.uid), getDriverRating(user.uid)]).then(([stats, rating]) => {
+        setStat({ trips: stats.totalTrips, rating: rating.rating || 4.9 });
+      });
     } else {
       countUserBookings(user.uid).then((count) => setStat((s) => ({ ...s, trips: count })));
     }

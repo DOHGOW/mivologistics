@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Truck, Star, CheckCircle2, Ban, FileWarning } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
-import { listDriversPage, updateDriverProfile, getDriverStats, type DriverProfile } from '../../lib/firestore';
+import { listDriversPage, updateDriverProfile, getDriverStats, getDriverRating, type DriverProfile } from '../../lib/firestore';
 import { isDemoMode } from '../../firebase';
 import Pagination from '../../components/Pagination';
 
@@ -29,6 +29,8 @@ export default function AdminDrivers() {
   // uid and only fetched once per driver so paging back and forth doesn't
   // re-fetch what's already known.
   const [driverStats, setDriverStats] = useState<Record<string, { totalTrips: number; totalEarnings: number }>>({});
+  // Same story for rating -- derived live from the reviews collection.
+  const [ratings, setRatings] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (isDemoMode) return;
@@ -37,6 +39,9 @@ export default function AdminDrivers() {
     toFetch.forEach((d) => {
       getDriverStats(d.uid).then((stats) => {
         setDriverStats((prev) => ({ ...prev, [d.uid]: stats }));
+      });
+      getDriverRating(d.uid).then((r) => {
+        setRatings((prev) => ({ ...prev, [d.uid]: r.rating || 4.9 }));
       });
     });
   }, [items]);
@@ -136,7 +141,7 @@ export default function AdminDrivers() {
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-1.5">
                         <Star className="w-4 h-4 text-orange-400 fill-current" />
-                        <span className="font-display font-bold text-gray-900">{driver.rating.toFixed(1)}</span>
+                        <span className="font-display font-bold text-gray-900">{(isDemoMode ? driver.rating : ratings[driver.uid] ?? 4.9).toFixed(1)}</span>
                       </div>
                     </td>
                     <td className="px-8 py-6">

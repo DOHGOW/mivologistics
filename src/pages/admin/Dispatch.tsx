@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Truck, MapPin, X, Star, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { watchPendingBookings, listOnlineDrivers, updateBooking, type Booking, type DriverProfile } from '../../lib/firestore';
+import { watchPendingBookings, listOnlineDrivers, updateBooking, getDriverRating, type Booking, type DriverProfile } from '../../lib/firestore';
 import { isDemoMode } from '../../firebase';
 
 const DEMO_PENDING: Booking[] = [
@@ -20,11 +20,19 @@ export default function AdminDispatch() {
   const [drivers, setDrivers] = useState<DriverProfile[]>(isDemoMode ? DEMO_DRIVERS : []);
   const [assigning, setAssigning] = useState<Booking | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ratings, setRatings] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (isDemoMode) return;
     const unsub = watchPendingBookings(setPending);
-    listOnlineDrivers().then(setDrivers);
+    listOnlineDrivers().then((list) => {
+      setDrivers(list);
+      // DriverProfile.rating is never actually written -- derive it live
+      // from the reviews collection instead.
+      list.forEach((d) => {
+        getDriverRating(d.uid).then((r) => setRatings((prev) => ({ ...prev, [d.uid]: r.rating || 4.9 })));
+      });
+    });
     return () => unsub();
   }, []);
 
@@ -119,7 +127,7 @@ export default function AdminDispatch() {
                     </div>
                     <div className="flex items-center gap-1 text-orange-400">
                       <Star className="w-3 h-3 fill-current" />
-                      <span className="text-xs font-bold text-gray-900">{d.rating.toFixed(1)}</span>
+                      <span className="text-xs font-bold text-gray-900">{(isDemoMode ? d.rating : ratings[d.uid] ?? 4.9).toFixed(1)}</span>
                     </div>
                   </button>
                 ))}

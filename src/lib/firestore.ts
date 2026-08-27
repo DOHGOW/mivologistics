@@ -467,20 +467,24 @@ export async function listWalletTransactionsPage(uid: string, pageSize: number, 
 
 export async function createReview(review: Omit<Review, 'id' | 'createdAt'>) {
   await addDoc(collection(db, 'reviews'), { ...review, createdAt: serverTimestamp() });
-  // Roll the new rating into the driver's average.
-  const driverSnap = await getDoc(doc(db, 'driverProfiles', review.driverId));
-  if (driverSnap.exists()) {
-    const d = driverSnap.data() as DriverProfile;
-    const newTotal = (d.totalTrips || 0) + 1;
-    const newRating = ((d.rating || 0) * (d.totalTrips || 0) + review.rating) / newTotal;
-    await updateDoc(doc(db, 'driverProfiles', review.driverId), { rating: Number(newRating.toFixed(2)) });
-  }
 }
 
 export async function listDriverReviews(driverId: string): Promise<Review[]> {
   const q = query(collection(db, 'reviews'), where('driverId', '==', driverId), orderBy('createdAt', 'desc'), limit(20));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Review) }));
+}
+
+// DriverProfile.rating is never actually written -- a customer submitting a
+// review isn't the driver or an admin, and firestore.rules correctly
+// doesn't let them touch a trust field like rating (that write used to be
+// attempted here and always silently failed). Derive it live from the
+// reviews collection instead, same approach as getDriverStats.
+export async function getDriverRating(driverId: string): Promise<{ rating: number; reviewCount: number }> {
+  const q = query(collection(db, 'reviews'), where('driverId', '==', driverId));
+  const snap = await getAggregateFromServer(q, { rating: average('rating'), reviewCount: count() });
+  const data = snap.data();
+  return { rating: data.rating ?? 0, reviewCount: data.reviewCount };
 }
 
 export const firestoreReady = !isDemoMode;

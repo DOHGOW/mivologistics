@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, FileText, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getBooking, type Booking, type BookingStatus } from '../lib/firestore';
 import { isDemoMode } from '../firebase';
@@ -82,6 +82,20 @@ export default function ShipmentStatus() {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
+          {booking?.status === 'delivered' && booking?.driverId && (
+            <button
+              onClick={() => navigate('/reviews', { state: { bookingId } })}
+              className="bg-[#ff8c00] p-6 rounded-3xl shadow-sm flex items-center gap-4 text-left active:scale-[0.98] transition-all"
+            >
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white">
+                <Star className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-display font-bold text-white">Rate This Trip</h4>
+                <p className="text-xs text-white/80">Tell us how {booking.driverName || 'your driver'} did</p>
+              </div>
+            </button>
+          )}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
               <FileText className="w-6 h-6" />
