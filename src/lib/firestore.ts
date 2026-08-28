@@ -56,6 +56,7 @@ export interface UserProfile {
   status: 'active' | 'suspended';
   notificationsEnabled?: boolean;
   savedAddresses?: SavedAddress[];
+  referredBy?: string; // uid of the user whose referral code/link was used at signup
   createdAt?: Timestamp;
 }
 
@@ -458,7 +459,69 @@ export async function addWalletTransaction(uid: string, tx: Omit<WalletTransacti
   await addDoc(collection(db, 'users', uid, 'walletTransactions'), { ...tx, createdAt: serverTimestamp() });
 }
 
+export const REFERRAL_SIGNUP_BONUS = 1000;
+export const REFERRAL_REFERRER_BONUS = 1000;
+
+export interface ReferralEntry {
+  uid: string;
+  displayName: string;
+  createdAt?: Timestamp;
+}
+
+// A minimal, public-safe lookup so a referral code (just a uid) can be
+// confirmed real -- and given a display name -- without reading the full
+// /users document it points at (that document has email/phone/saved
+// addresses on it, which a stranger validating a code has no business
+// reading). Every signup writes its own entry here.
+export async function createReferralCodeEntry(uid: string, displayName: string) {
+  await setDoc(doc(db, 'referralCodes', uid), { displayName });
+}
+
+export async function getReferralCodeEntry(uid: string): Promise<{ displayName: string } | null> {
+  const snap = await getDoc(doc(db, 'referralCodes', uid));
+  return snap.exists() ? (snap.data() as { displayName: string }) : null;
+}
+
+// The referred user writes this into the REFERRER's own subcollection at
+// signup (their own session can't write into the referrer's wallet -- see
+// creditReferralBonus below -- but can drop this receipt; rules require the
+// doc ID to match the writer's own uid, so nobody can forge someone else's
+// referral).
+export async function recordReferral(referrerUid: string, referredUid: string, referredName: string) {
+  await setDoc(doc(db, 'users', referrerUid, 'referrals', referredUid), { displayName: referredName, createdAt: serverTimestamp() });
+}
+
+export async function listMyReferrals(uid: string): Promise<ReferralEntry[]> {
+  const snap = await getDocs(collection(db, 'users', uid, 'referrals'));
+  return snap.docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<ReferralEntry, 'uid'>) }));
+}
+
+// Credits the REFERRER's own wallet -- must be called from the referrer's
+// own signed-in session (walletTransactions:create requires isOwner(uid)),
+// which is why this runs from Wallet.tsx on load rather than from the new
+// signup's session. Uses a deterministic doc ID keyed on the referred
+// user's uid so it's safe to call every time without double-crediting.
+export async function creditReferralBonus(referrerUid: string, referredUid: string, referredName: string): Promise<boolean> {
+  const ref = doc(db, 'users', referrerUid, 'walletTransactions', `referral_${referredUid}`);
+  const existing = await getDoc(ref);
+  if (existing.exists()) return false;
+  await setDoc(ref, {
+    amount: REFERRAL_REFERRER_BONUS,
+    type: 'credit',
+    description: `Referral bonus · ${referredName} joined Mivo`,
+    reference: `REFERRAL_${referredUid}`,
+    createdAt: serverTimestamp(),
+  });
+  return true;
+}
+
 export async function listWalletTransactionsPage(uid: string, pageSize: number, cursor?: QueryDocumentSnapshot<DocumentData>) {
+  // Callers commonly pass user?.uid || '' before auth has resolved on first
+  // render -- querying users/''/walletTransactions would just throw
+  // permission-denied (uid '' can never be isOwner), so skip it and return
+  // an empty page instead of a console error that self-resolves anyway once
+  // uid becomes real.
+  if (!uid) return { items: [], lastDoc: undefined, hasMore: false };
   const q = cursor
     ? query(collection(db, 'users', uid, 'walletTransactions'), orderBy('createdAt', 'desc'), startAfter(cursor), limit(pageSize))
     : query(collection(db, 'users', uid, 'walletTransactions'), orderBy('createdAt', 'desc'), limit(pageSize));

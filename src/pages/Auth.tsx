@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, Loader2, User as UserIcon } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Eye, EyeOff, Loader2, User as UserIcon, Gift } from 'lucide-react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -10,28 +10,49 @@ import {
   sendResetEmail,
   isDemoMode,
 } from '../firebase';
-import { createUserProfile, getUserProfile } from '../lib/firestore';
+import {
+  createUserProfile, getUserProfile, addWalletTransaction, REFERRAL_SIGNUP_BONUS,
+  createReferralCodeEntry, getReferralCodeEntry, recordReferral,
+} from '../lib/firestore';
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isSignup, setIsSignup] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const afterAuth = async (uid: string, fallbackName: string, fallbackEmail: string) => {
     let profile = await getUserProfile(uid);
     if (!profile) {
+      const displayName = fallbackName || 'Mivo Customer';
+      const code = referralCode.trim();
+      const referrer = code && code !== uid ? await getReferralCodeEntry(code).catch(() => null) : null;
+
       await createUserProfile({
         uid,
-        displayName: fallbackName || 'Mivo Customer',
+        displayName,
         email: fallbackEmail,
         role: 'user',
         status: 'active',
+        ...(referrer ? { referredBy: code } : {}),
       });
+      await createReferralCodeEntry(uid, displayName);
+
+      if (referrer) {
+        await recordReferral(code, uid, displayName);
+        await addWalletTransaction(uid, {
+          amount: REFERRAL_SIGNUP_BONUS,
+          type: 'credit',
+          description: `Referral signup bonus · invited by ${referrer.displayName}`,
+          reference: `REFERRAL_SIGNUP_${code}`,
+        });
+      }
     } else if (profile.role !== 'user') {
       setError(`This account is registered as a ${profile.role}. Use the right portal to sign in.`);
       return false;
@@ -53,8 +74,38 @@ export default function Auth() {
     try {
       if (isSignup) {
         const user = await registerWithEmail(email, password, name);
-        await createUserProfile({ uid: user.uid, displayName: name, email, role: 'user', status: 'active' });
-        toast.success(`Welcome to Mivo, ${name.split(' ')[0]}!`);
+
+        // A referral code is just the referrer's own uid. Validate it
+        // against the public-safe referralCodes lookup rather than reading
+        // their full /users profile (which holds email/phone/addresses a
+        // stranger has no business reading just to check a code is real).
+        const code = referralCode.trim();
+        const referrer = code && code !== user.uid ? await getReferralCodeEntry(code).catch(() => null) : null;
+
+        await createUserProfile({
+          uid: user.uid,
+          displayName: name,
+          email,
+          role: 'user',
+          status: 'active',
+          ...(referrer ? { referredBy: code } : {}),
+        });
+        // Every user gets a lookup entry so THEIR OWN referral link/code
+        // works for people they invite later.
+        await createReferralCodeEntry(user.uid, name);
+
+        if (referrer) {
+          await recordReferral(code, user.uid, name);
+          await addWalletTransaction(user.uid, {
+            amount: REFERRAL_SIGNUP_BONUS,
+            type: 'credit',
+            description: `Referral signup bonus · invited by ${referrer.displayName}`,
+            reference: `REFERRAL_SIGNUP_${code}`,
+          });
+          toast.success(`Welcome to Mivo, ${name.split(' ')[0]}! ₦${REFERRAL_SIGNUP_BONUS.toLocaleString()} referral bonus added to your wallet.`);
+        } else {
+          toast.success(`Welcome to Mivo, ${name.split(' ')[0]}!`);
+        }
         navigate('/home');
       } else {
         const user = await loginWithEmail(email, password);
@@ -167,6 +218,17 @@ export default function Auth() {
                       placeholder="Your full name"
                       className="bg-transparent border-none w-full focus:ring-0 text-gray-900 placeholder:text-gray-300 font-medium"
                       required={isSignup}
+                    />
+                  </div>
+                  <label className="block text-sm font-semibold text-gray-500 mb-2 ml-1 mt-4">Referral code (optional)</label>
+                  <div className="flex items-center bg-white rounded-2xl px-4 h-14 border border-gray-100 shadow-sm focus-within:ring-2 focus-within:ring-[#ff8c00]/20 transition-all">
+                    <Gift className="w-5 h-5 text-gray-300 mr-3" />
+                    <input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value)}
+                      placeholder="Got a friend's code?"
+                      className="bg-transparent border-none w-full focus:ring-0 text-gray-900 placeholder:text-gray-300 font-medium"
                     />
                   </div>
                 </motion.div>

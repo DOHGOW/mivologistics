@@ -86,6 +86,30 @@ service cloud.firestore {
         allow create: if isOwner(uid);
         allow update, delete: if isAdmin();
       }
+
+      // A referred user writes a receipt of their own signup into the
+      // REFERRER's subcollection -- same trust level as notifications
+      // above (any signed-in party may write into someone else's inbox
+      // here), but the doc ID must be the writer's own uid so nobody can
+      // forge a referral record under someone else's name. Only the
+      // referrer (owner) can read the resulting list -- this is why
+      // referrals live here instead of a where('referredBy', ...) query
+      // against /users, which would require reading strangers' full
+      // profiles (email, phone, saved addresses) just to validate a code.
+      match /referrals/{referredUid} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isAuthenticated() && referredUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // A minimal, public-safe lookup so a referral code (just a uid) can be
+    // validated and given a display name without reading the full /users
+    // document it refers to. Deliberately only ever holds a display name.
+    match /referralCodes/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && request.resource.data.keys().hasOnly(['displayName']);
+      allow update, delete: if false;
     }
 
     // ===============================================================

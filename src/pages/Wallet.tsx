@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Wallet, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Wallet, TrendingUp, TrendingDown, Loader2, Gift, Copy, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { usePaginatedQuery } from '../hooks/usePaginatedQuery';
-import { listWalletTransactionsPage, addWalletTransaction, type WalletTransaction } from '../lib/firestore';
+import {
+  listWalletTransactionsPage, addWalletTransaction, listMyReferrals, creditReferralBonus,
+  REFERRAL_SIGNUP_BONUS, REFERRAL_REFERRER_BONUS, type WalletTransaction,
+} from '../lib/firestore';
 import { isDemoMode } from '../firebase';
 import { payWithPaystack } from '../lib/payments';
 import Pagination from '../components/Pagination';
@@ -21,6 +24,9 @@ export default function WalletPage() {
   const [topUpAmount, setTopUpAmount] = useState('5000');
   const [processing, setProcessing] = useState(false);
   const [balance, setBalance] = useState(0);
+  const [referralCount, setReferralCount] = useState(0);
+
+  const referralLink = user ? `${window.location.origin}/auth?ref=${user.uid}` : '';
 
   const { items, page, hasMore, loading, next, prev, reload } = usePaginatedQuery<WalletTransaction>(
     (pageSize, cursor) => listWalletTransactionsPage(user?.uid || '', pageSize, cursor),
@@ -29,6 +35,32 @@ export default function WalletPage() {
   );
 
   const transactions = isDemoMode ? DEMO_TX : items;
+
+  // Credit any of my referrals I haven't been paid out for yet. This has to
+  // run from MY OWN session -- walletTransactions:create requires
+  // isOwner(uid), so the new signup's session could never write into my
+  // wallet directly (see lib/firestore.ts creditReferralBonus).
+  useEffect(() => {
+    if (isDemoMode || !user) return;
+    listMyReferrals(user.uid).then(async (referrals) => {
+      setReferralCount(referrals.length);
+      for (const r of referrals) {
+        try {
+          const credited = await creditReferralBonus(user.uid, r.uid, r.displayName);
+          if (credited) reload();
+        } catch {
+          // Benign race: two concurrent calls (e.g. React StrictMode's dev-
+          // only double effect invocation, or an auth token refresh
+          // re-running this effect) can both see the bonus as not-yet-
+          // credited and both attempt to create it. Whichever loses the
+          // race hits a real Firestore rule rejection here (a second
+          // create on the same doc ID is evaluated as an update, which
+          // walletTransactions correctly restricts to admins) -- harmless,
+          // the winner's write already recorded the credit.
+        }
+      }
+    });
+  }, [user]);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -108,6 +140,52 @@ export default function WalletPage() {
             </div>
           </div>
           <Wallet className="absolute -right-6 -bottom-6 w-48 h-48 text-white/10 rotate-12" />
+        </div>
+
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-50 mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 shrink-0">
+              <Gift className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-gray-900">Refer & Earn</h3>
+              <p className="text-xs text-gray-400 font-medium">
+                Give ₦{REFERRAL_SIGNUP_BONUS.toLocaleString()}, get ₦{REFERRAL_REFERRER_BONUS.toLocaleString()} — {referralCount} friend{referralCount === 1 ? '' : 's'} joined so far
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-50 rounded-2xl px-4 h-11 flex items-center overflow-hidden">
+              <span className="text-xs text-gray-500 font-mono truncate">{referralLink}</span>
+            </div>
+            <button
+              onClick={async () => {
+                if (isDemoMode) { toast.info('Demo mode — connect Firebase to get a real referral link.'); return; }
+                await navigator.clipboard.writeText(referralLink);
+                toast.success('Referral link copied.');
+              }}
+              className="p-2.5 rounded-xl bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+              title="Copy link"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            <button
+              onClick={async () => {
+                if (isDemoMode) { toast.info('Demo mode — connect Firebase to get a real referral link.'); return; }
+                const text = `Book trucks the easy way with Mivo — sign up with my link and we both get a wallet bonus: ${referralLink}`;
+                if (navigator.share) {
+                  try { await navigator.share({ title: 'Join me on Mivo', text }); } catch { /* cancelled */ }
+                } else {
+                  await navigator.clipboard.writeText(text);
+                  toast.success('Referral message copied.');
+                }
+              }}
+              className="p-2.5 rounded-xl bg-[#ff8c00] text-white hover:bg-[#e67e00] transition-colors shrink-0"
+              title="Share"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <section>
