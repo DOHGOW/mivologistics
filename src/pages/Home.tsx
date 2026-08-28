@@ -17,14 +17,15 @@ import {
   Truck,
   Bell
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Star, X } from 'lucide-react';
 import { useBooking } from '../contexts/BookingContext';
 import { useAuth } from '../contexts/AuthContext';
 import { logout } from '../firebase';
 import { geocodeAddress, distanceKm } from '../lib/geocode';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
+import { listUserBookingsPage, hasReviewedBooking, type Booking } from '../lib/firestore';
 
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
@@ -37,6 +38,26 @@ export default function Home() {
   const { booking, setBooking } = useBooking();
   const { user: authUser, profile, isDemoMode } = useAuth();
   const unreadCount = useUnreadNotifications(authUser?.uid);
+  const [unratedBooking, setUnratedBooking] = useState<Booking | null>(null);
+
+  // Fallback for customers who navigate away before LiveTracking.tsx's
+  // proactive prompt can catch a trip finishing -- check their most recent
+  // booking once on landing here too.
+  useEffect(() => {
+    if (isDemoMode || !authUser) return;
+    listUserBookingsPage(authUser.uid, 1).then(async (res) => {
+      const latest = res.items[0];
+      if (!latest?.id || latest.status !== 'delivered') return;
+      if (localStorage.getItem(`mivo_review_dismissed_${latest.id}`)) return;
+      const already = await hasReviewedBooking(latest.id);
+      if (!already) setUnratedBooking(latest);
+    });
+  }, [authUser, isDemoMode]);
+
+  const dismissRatingBanner = () => {
+    if (unratedBooking?.id) localStorage.setItem(`mivo_review_dismissed_${unratedBooking.id}`, '1');
+    setUnratedBooking(null);
+  };
 
   const user = {
     displayName: profile?.displayName || 'Guest User',
@@ -144,6 +165,29 @@ export default function Home() {
           />
         </div>
       </div>
+
+      {unratedBooking && (
+        <div className="relative z-40 px-6 mt-3">
+          <div className="max-w-lg mx-auto bg-gray-900 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+              <Star className="w-5 h-5 text-[#ff8c00]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold">Rate your last trip</p>
+              <p className="text-xs text-white/60 truncate">How was {unratedBooking.driverName || 'your driver'}?</p>
+            </div>
+            <button
+              onClick={() => navigate('/reviews', { state: { bookingId: unratedBooking.id } })}
+              className="bg-[#ff8c00] text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0"
+            >
+              Rate
+            </button>
+            <button onClick={dismissRatingBanner} className="text-white/40 hover:text-white shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Map Controls */}
       <div className="absolute right-6 top-40 z-10 flex flex-col gap-3">

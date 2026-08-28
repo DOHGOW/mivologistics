@@ -9,10 +9,12 @@ import {
   ShieldCheck,
   ChevronRight,
   Radar,
+  CheckCircle2,
+  Star,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LiveMap from '../components/LiveMap';
-import { watchBooking, watchDriverLocation, type Booking, type DriverLocation } from '../lib/firestore';
+import { watchBooking, watchDriverLocation, hasReviewedBooking, type Booking, type DriverLocation } from '../lib/firestore';
 import { isDemoMode } from '../firebase';
 
 const AVG_SPEED_KMH = 35;
@@ -24,12 +26,24 @@ export default function LiveTracking() {
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [driverLoc, setDriverLoc] = useState<DriverLocation | null>(null);
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(false);
 
   useEffect(() => {
     if (!bookingId || isDemoMode) return;
     const unsub = watchBooking(bookingId, setBooking);
     return () => unsub();
   }, [bookingId]);
+
+  // Proactively surface the rating prompt the moment this trip shows as
+  // delivered, instead of leaving it to the customer to dig it up later via
+  // History -> Shipment Status.
+  useEffect(() => {
+    if (!bookingId || isDemoMode || promptDismissed || booking?.status !== 'delivered') return;
+    hasReviewedBooking(bookingId).then((already) => {
+      if (!already) setShowRatingPrompt(true);
+    });
+  }, [bookingId, booking?.status, promptDismissed]);
 
   useEffect(() => {
     if (!bookingId || isDemoMode) return;
@@ -161,7 +175,11 @@ export default function LiveTracking() {
             <div className="text-right">
               <div className="flex items-center gap-2 text-green-600 font-bold text-sm mb-1">
                 <Clock className="w-4 h-4" />
-                <span>{activeBooking?.status === 'in-transit' ? 'In Transit' : activeBooking?.status === 'assigned' ? 'Driver Assigned' : 'Awaiting Pickup'}</span>
+                <span>
+                  {activeBooking?.status === 'delivered' ? 'Delivered' :
+                   activeBooking?.status === 'in-transit' ? 'In Transit' :
+                   activeBooking?.status === 'assigned' ? 'Driver Assigned' : 'Awaiting Pickup'}
+                </span>
               </div>
               <p className="text-gray-400 text-xs font-medium">Distance: {remainingKm.toFixed(1)} km left</p>
             </div>
@@ -210,6 +228,36 @@ export default function LiveTracking() {
           </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {showRatingPrompt && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center px-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="bg-white rounded-[3rem] p-10 w-full max-w-sm relative z-10 text-center">
+              <div className="w-24 h-24 bg-green-50 rounded-[2.5rem] flex items-center justify-center text-green-500 mx-auto mb-8">
+                <CheckCircle2 className="w-12 h-12" />
+              </div>
+              <h2 className="font-display font-black text-3xl text-gray-900 mb-2">Delivered!</h2>
+              <p className="text-gray-500 font-medium mb-8">
+                Your cargo made it to {activeBooking?.destination}. How was {activeBooking?.driverName || 'your driver'}?
+              </p>
+              <button
+                onClick={() => navigate('/reviews', { state: { bookingId } })}
+                className="w-full bg-gradient-to-r from-[#904d00] to-[#ff8c00] text-white py-5 rounded-2xl font-display font-bold text-sm shadow-xl shadow-orange-200 active:scale-95 transition-all flex items-center justify-center gap-2 mb-3"
+              >
+                <Star className="w-4 h-4" />
+                Rate This Trip
+              </button>
+              <button
+                onClick={() => { setShowRatingPrompt(false); setPromptDismissed(true); }}
+                className="w-full text-gray-400 font-bold text-sm py-2"
+              >
+                Maybe Later
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

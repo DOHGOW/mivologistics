@@ -484,6 +484,12 @@ export async function listDriverReviews(driverId: string): Promise<Review[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Review) }));
 }
 
+export async function hasReviewedBooking(bookingId: string): Promise<boolean> {
+  const q = query(collection(db, 'reviews'), where('bookingId', '==', bookingId), limit(1));
+  const snap = await getDocs(q);
+  return !snap.empty;
+}
+
 // DriverProfile.rating is never actually written -- a customer submitting a
 // review isn't the driver or an admin, and firestore.rules correctly
 // doesn't let them touch a trust field like rating (that write used to be
