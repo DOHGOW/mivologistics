@@ -25,6 +25,7 @@ import Payment from './pages/Payment';
 import BookingSuccess from './pages/BookingSuccess';
 import LiveTracking from './pages/LiveTracking';
 import ShipmentStatus from './pages/ShipmentStatus';
+import Receipt from './pages/Receipt';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import History from './pages/History';
@@ -93,6 +94,7 @@ function PageTransition() {
           <Route path="/booking-success" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><BookingSuccess /></ProtectedRoute>} />
           <Route path="/tracking" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><LiveTracking /></ProtectedRoute>} />
           <Route path="/shipment-status" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><ShipmentStatus /></ProtectedRoute>} />
+          <Route path="/receipt" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><Receipt /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute allow={['user', 'driver', 'admin']} redirectTo="/auth"><Profile /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute allow={['user', 'driver', 'admin']} redirectTo="/auth"><Settings /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute allow={['user']} redirectTo="/auth"><History /></ProtectedRoute>} />

@@ -96,15 +96,18 @@ export default function ShipmentStatus() {
               </div>
             </button>
           )}
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
+          <button
+            onClick={() => navigate('/receipt', { state: { bookingId } })}
+            className="w-full bg-white p-6 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4 text-left hover:border-[#ff8c00]/20 transition-all"
+          >
             <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
               <FileText className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h4 className="font-display font-bold text-gray-900">Shipping Documents</h4>
-              <p className="text-xs text-gray-400">Waybill, Invoice, Insurance</p>
+              <h4 className="font-display font-bold text-gray-900">Receipt</h4>
+              <p className="text-xs text-gray-400">View or print your payment receipt</p>
             </div>
-          </div>
+          </button>
         </div>
       </main>
     </div>
