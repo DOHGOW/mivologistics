@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Star, Zap, Truck, Package, Shield, User } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Star, Zap, Truck, Package, Shield, User, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useBooking } from '../contexts/BookingContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +33,8 @@ export default function SelectTruck() {
   const { profile } = useAuth();
   const [trucks, setTrucks] = useState<DisplayTruck[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'recommended' | 'price-asc' | 'price-desc' | 'rating'>('recommended');
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const distance = booking.distanceKm ?? MIN_DISTANCE_KM;
 
   useEffect(() => {
@@ -97,6 +99,20 @@ export default function SelectTruck() {
     navigate(`/truck-details/${truck.id}`);
   };
 
+  const sortedTrucks = [...trucks].sort((a, b) => {
+    if (sortBy === 'price-asc') return a.price - b.price;
+    if (sortBy === 'price-desc') return b.price - a.price;
+    if (sortBy === 'rating') return b.rating - a.rating;
+    return 0; // 'recommended' — keep the server/fallback order as-is
+  });
+
+  const SORT_LABELS: Record<typeof sortBy, string> = {
+    recommended: 'Recommended',
+    'price-asc': 'Price: Low to High',
+    'price-desc': 'Price: High to Low',
+    rating: 'Highest Rated',
+  };
+
   return (
     <div className="min-h-screen bg-[#fcf9f8] pb-32">
       <nav className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-6 py-4 border-b border-gray-50">
@@ -109,11 +125,31 @@ export default function SelectTruck() {
           </button>
           <h1 className="font-display font-bold text-lg text-gray-900">Select Trucks</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 text-gray-500 text-sm font-medium">
-            <span>Sort by</span>
-            <ChevronRight className="w-4 h-4 rotate-90" />
+        <div className="flex items-center gap-3 relative">
+          <button
+            onClick={() => setSortMenuOpen((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 text-gray-500 text-sm font-medium hover:bg-gray-100 transition-colors"
+          >
+            <span>{SORT_LABELS[sortBy]}</span>
+            <ChevronRight className={`w-4 h-4 transition-transform ${sortMenuOpen ? '-rotate-90' : 'rotate-90'}`} />
           </button>
+          {sortMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSortMenuOpen(false)} />
+              <div className="absolute top-12 right-16 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 w-56">
+                {(Object.keys(SORT_LABELS) as (typeof sortBy)[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => { setSortBy(key); setSortMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 text-left"
+                  >
+                    {SORT_LABELS[key]}
+                    {sortBy === key && <Check className="w-4 h-4 text-[#ff8c00]" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-100">
             <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100" alt="Profile" />
           </div>
@@ -154,7 +190,7 @@ export default function SelectTruck() {
               ))}
             </>
           )}
-          {!loading && trucks.map((truck) => (
+          {!loading && sortedTrucks.map((truck) => (
             <motion.div 
               key={truck.id}
               whileHover={{ scale: 1.02 }}

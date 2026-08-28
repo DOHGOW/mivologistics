@@ -33,6 +33,7 @@ import {
   type DriverProfile,
 } from '../../lib/firestore';
 import { distanceKm } from '../../lib/geocode';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 
 const BACKHAUL_RADIUS_KM = 15;
 
@@ -44,6 +45,7 @@ const DEMO_JOBS: Booking[] = [
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const { user, profile, isDemoMode: demo } = useAuth();
+  const unreadCount = useUnreadNotifications(user?.uid);
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverStats, setDriverStats] = useState<{ totalTrips: number; totalEarnings: number } | null>(null);
   const [driverRating, setDriverRating] = useState<number | null>(null);
@@ -156,7 +158,7 @@ export default function DriverDashboard() {
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/notifications')} className="p-2 rounded-2xl bg-gray-50 text-gray-900 relative">
             <Bell className="w-6 h-6" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff8c00] rounded-full border-2 border-white" />
+            {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff8c00] rounded-full border-2 border-white" />}
           </button>
           <button onClick={() => navigate('/profile')} className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-sm bg-gray-100 flex items-center justify-center text-gray-400 font-display font-bold">
             {profile?.displayName?.[0] || 'D'}

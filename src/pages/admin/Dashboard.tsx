@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { logout, isDemoMode } from '../../firebase';
 import { getAdminBookingStats, getAdminFleetStats, listAllBookingsPage, type AdminBookingStats, type AdminFleetStats, type Booking } from '../../lib/firestore';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 
 const DEMO_STATS: AdminBookingStats = { totalRevenue: 12500000, totalBookings: 8420, activeShipments: 342, pendingRequests: 124 };
 const DEMO_FLEET: AdminFleetStats = { availableTrucks: 18, totalTrucks: 24, onlineDrivers: 32, totalDrivers: 47, avgDriverRating: 4.8, pendingVerifications: 6 };
@@ -19,7 +20,8 @@ const DEMO_TRIPS: Booking[] = [
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+  const unreadCount = useUnreadNotifications(user?.uid);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [stats, setStats] = useState<AdminBookingStats>(isDemoMode ? DEMO_STATS : { totalRevenue: 0, totalBookings: 0, activeShipments: 0, pendingRequests: 0 });
   const [fleet, setFleet] = useState<AdminFleetStats>(isDemoMode ? DEMO_FLEET : { availableTrucks: 0, totalTrucks: 0, onlineDrivers: 0, totalDrivers: 0, avgDriverRating: 0, pendingVerifications: 0 });
@@ -117,6 +119,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-4">
             <button onClick={() => navigate('/notifications')} className="p-2.5 rounded-2xl bg-gray-50 text-gray-900 relative hover:bg-gray-100 transition-colors">
               <Bell className="w-5 h-5" />
+              {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff8c00] rounded-full border-2 border-white" />}
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-gray-100">
               <div className="text-right hidden sm:block">

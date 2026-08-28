@@ -1,20 +1,21 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Menu, 
-  Search, 
-  Mic, 
-  MapPin, 
-  Navigation, 
-  Calendar, 
-  Clock, 
+import {
+  Menu,
+  Search,
+  Mic,
+  MapPin,
+  Navigation,
+  Calendar,
+  Clock,
   ArrowRight,
   Layers,
   LocateFixed,
   History,
   MessageCircle,
   User,
-  Truck
+  Truck,
+  Bell
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -23,13 +24,15 @@ import { useBooking } from '../contexts/BookingContext';
 import { useAuth } from '../contexts/AuthContext';
 import { logout } from '../firebase';
 import { geocodeAddress, distanceKm } from '../lib/geocode';
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
 export default function Home() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const { booking, setBooking } = useBooking();
-  const { profile, isDemoMode } = useAuth();
+  const { user: authUser, profile, isDemoMode } = useAuth();
+  const unreadCount = useUnreadNotifications(authUser?.uid);
 
   const user = {
     displayName: profile?.displayName || 'Guest User',
@@ -107,7 +110,14 @@ export default function Home() {
             <button className="text-gray-500 text-sm hover:text-[#ff8c00]">Activity</button>
             <button className="text-gray-500 text-sm hover:text-[#ff8c00]">Chat</button>
           </div>
-          <button 
+          <button
+            onClick={() => navigate('/notifications')}
+            className="p-2 rounded-full bg-gray-50 text-gray-900 relative hover:bg-gray-100 transition-colors"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ff8c00] rounded-full border-2 border-white" />}
+          </button>
+          <button
             onClick={() => navigate('/profile')}
             className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-sm"
           >
@@ -120,12 +130,14 @@ export default function Home() {
       <div className="relative z-40 px-6 mt-4">
         <div className="max-w-lg mx-auto bg-white/90 backdrop-blur-md rounded-2xl p-2 shadow-xl border border-white/20 flex items-center gap-3 px-4 h-14">
           <MapPin className="w-5 h-5 text-[#ff8c00]" />
-          <input 
-            type="text" 
-            placeholder="Search here"
+          <input
+            type="text"
+            value={booking.destination}
+            onChange={(e) => setBooking({ ...booking, destination: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && handleFindTruck()}
+            placeholder="Where are you shipping to?"
             className="bg-transparent border-none focus:ring-0 w-full text-gray-900 placeholder:text-gray-400 font-medium"
           />
-          <Mic className="w-5 h-5 text-gray-400" />
         </div>
       </div>
 
