@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CreditCard, Wallet, Banknote, ShieldCheck, ChevronRight, Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { useBooking } from '../contexts/BookingContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +34,12 @@ export default function Payment() {
     }
 
     try {
+      // Same undefined-vs-omit rule as paymentMethod below: only include
+      // scheduledAt when the customer actually picked a custom date/time.
+      const scheduledAt = booking.date === 'Custom Date' && booking.scheduledDate
+        ? Timestamp.fromDate(new Date(`${booking.scheduledDate}T${booking.scheduledTime || '09:00'}`))
+        : null;
+
       const bookingId = await createBooking({
         userId: user.uid,
         userName: profile.displayName,
@@ -49,6 +56,7 @@ export default function Payment() {
         // Cash on Delivery (which has no gateway) must omit the key rather
         // than set it to undefined — paymentMethod is optional on Booking.
         ...(selected !== 'cod' ? { paymentMethod: selected as 'paystack' | 'flutterwave' | 'wallet' } : {}),
+        ...(scheduledAt ? { scheduledAt } : {}),
         paymentRef,
         paymentStatus,
         status: 'pending',

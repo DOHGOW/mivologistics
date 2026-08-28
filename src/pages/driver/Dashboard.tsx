@@ -18,6 +18,7 @@ import {
   FileText,
   ShieldAlert,
   Flame,
+  CalendarClock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -259,12 +260,20 @@ export default function DriverDashboard() {
             <motion.div key={job.id} whileHover={{ scale: 1.01 }} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
               <div className="relative z-10">
-                {isBackhaul && (
-                  <div className="inline-flex items-center gap-1.5 bg-orange-50 text-[#ff8c00] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">
-                    <Flame className="w-3 h-3" />
-                    Backhaul Match · {job.distanceFromDriver!.toFixed(1)} km from you
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {isBackhaul && (
+                    <div className="inline-flex items-center gap-1.5 bg-orange-50 text-[#ff8c00] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                      <Flame className="w-3 h-3" />
+                      Backhaul Match · {job.distanceFromDriver!.toFixed(1)} km from you
+                    </div>
+                  )}
+                  {job.scheduledAt && (
+                    <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                      <CalendarClock className="w-3 h-3" />
+                      Scheduled · {job.scheduledAt.toDate().toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400">

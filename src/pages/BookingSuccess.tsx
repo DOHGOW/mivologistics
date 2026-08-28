@@ -58,7 +58,11 @@ export default function BookingSuccess() {
             </div>
             <div className="text-left">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Scheduled Date</p>
-              <p className="font-display font-bold text-gray-900">Today • ASAP</p>
+              <p className="font-display font-bold text-gray-900">
+                {booking?.scheduledAt
+                  ? booking.scheduledAt.toDate().toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : 'Today • ASAP'}
+              </p>
             </div>
           </div>
 

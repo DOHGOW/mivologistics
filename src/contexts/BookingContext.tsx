@@ -9,6 +9,8 @@ interface BookingData {
   distanceKm?: number;
   date: string;
   time: string;
+  scheduledDate?: string; // 'YYYY-MM-DD', only set when date === 'Custom Date'
+  scheduledTime?: string; // 'HH:MM', only set when time === 'Schedule'
   truckId?: string;
   truckName?: string;
   price?: number;

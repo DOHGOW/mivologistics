@@ -26,6 +26,10 @@ import { logout } from '../firebase';
 import { geocodeAddress, distanceKm } from '../lib/geocode';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -200,33 +204,58 @@ export default function Home() {
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-4">Select Date</label>
                 <div className="bg-gray-50 rounded-2xl flex items-center px-4 h-12">
                   <Calendar className="w-4 h-4 text-gray-400 mr-2" />
-                  <select 
+                  <select
                     value={booking.date}
-                    onChange={(e) => setBooking({ ...booking, date: e.target.value })}
+                    onChange={(e) => {
+                      const date = e.target.value;
+                      const seedsDefault = date === 'Custom Date' && !booking.scheduledDate;
+                      setBooking({ ...booking, date, ...(seedsDefault ? { scheduledDate: todayISODate() } : {}) });
+                    }}
                     className="bg-transparent border-none focus:ring-0 w-full font-medium text-xs text-gray-900 appearance-none"
                   >
                     <option>Now</option>
                     <option>Custom Date</option>
                   </select>
                 </div>
+                {booking.date === 'Custom Date' && (
+                  <input
+                    type="date"
+                    value={booking.scheduledDate || todayISODate()}
+                    min={todayISODate()}
+                    onChange={(e) => setBooking({ ...booking, scheduledDate: e.target.value })}
+                    className="mt-2 w-full bg-gray-50 rounded-2xl px-4 h-10 text-xs font-medium text-gray-900 border-none focus:ring-0"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-4">Select Time</label>
                 <div className="bg-gray-50 rounded-2xl flex items-center px-4 h-12">
                   <Clock className="w-4 h-4 text-gray-400 mr-2" />
-                  <select 
+                  <select
                     value={booking.time}
-                    onChange={(e) => setBooking({ ...booking, time: e.target.value })}
+                    onChange={(e) => {
+                      const time = e.target.value;
+                      const seedsDefault = time === 'Schedule' && !booking.scheduledTime;
+                      setBooking({ ...booking, time, ...(seedsDefault ? { scheduledTime: '09:00' } : {}) });
+                    }}
                     className="bg-transparent border-none focus:ring-0 w-full font-medium text-xs text-gray-900 appearance-none"
                   >
                     <option>ASAP</option>
                     <option>Schedule</option>
                   </select>
                 </div>
+                {booking.time === 'Schedule' && (
+                  <input
+                    type="time"
+                    value={booking.scheduledTime || '09:00'}
+                    onChange={(e) => setBooking({ ...booking, scheduledTime: e.target.value })}
+                    className="mt-2 w-full bg-gray-50 rounded-2xl px-4 h-10 text-xs font-medium text-gray-900 border-none focus:ring-0"
+                  />
+                )}
               </div>
             </div>
 
-            <button 
+            <button
               onClick={handleFindTruck}
               disabled={locating}
               className="w-full mt-6 h-14 bg-[#ff8c00] rounded-2xl text-white font-display font-bold text-base shadow-xl shadow-orange-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
