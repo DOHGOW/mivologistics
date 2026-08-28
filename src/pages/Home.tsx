@@ -169,6 +169,21 @@ export default function Home() {
             </div>
           </div>
 
+          {profile?.savedAddresses && profile.savedAddresses.length > 0 && (
+            <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar">
+              {profile.savedAddresses.map((place) => (
+                <button
+                  key={place.id}
+                  onClick={() => setBooking({ ...booking, destination: place.address, destinationCoords: { lat: place.lat, lng: place.lng } })}
+                  className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 text-[#ff8c00] text-xs font-bold hover:bg-orange-100 transition-colors"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  {place.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-3">
             <div className="relative group">
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-4">Pickup Location</label>

@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, Shield, Eye, Smartphone, Globe, Info, ChevronRight, Moon, Trash2, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bell, Shield, Eye, Smartphone, Globe, Info, ChevronRight, Moon, Trash2, X, Loader2, MapPin, Plus, Home as HomeIcon, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { sendResetEmail, deleteCurrentAccount } from '../firebase';
-import { updateUserProfile, deleteUserProfile } from '../lib/firestore';
+import { updateUserProfile, deleteUserProfile, type SavedAddress } from '../lib/firestore';
+import { geocodeAddress } from '../lib/geocode';
+
+function addressIcon(label: string) {
+  const l = label.toLowerCase();
+  if (l === 'home') return <HomeIcon className="w-5 h-5" />;
+  if (l === 'work') return <Briefcase className="w-5 h-5" />;
+  return <MapPin className="w-5 h-5" />;
+}
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -13,6 +21,43 @@ export default function Settings() {
   const [notificationsOn, setNotificationsOn] = useState(profile?.notificationsEnabled ?? true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(profile?.savedAddresses || []);
+  const [showAddPlace, setShowAddPlace] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [savingPlace, setSavingPlace] = useState(false);
+
+  const handleAddPlace = async () => {
+    if (!newLabel.trim() || !newAddress.trim() || !user) return;
+    setSavingPlace(true);
+    try {
+      const geo = await geocodeAddress(newAddress.trim());
+      if (!geo) {
+        toast.error("Couldn't locate that address. Try a more specific one.");
+        return;
+      }
+      const next: SavedAddress[] = [
+        ...savedAddresses,
+        { id: String(Date.now()), label: newLabel.trim(), address: newAddress.trim(), lat: geo.lat, lng: geo.lng },
+      ];
+      if (!demo) await updateUserProfile(user.uid, { savedAddresses: next });
+      setSavedAddresses(next);
+      setNewLabel('');
+      setNewAddress('');
+      setShowAddPlace(false);
+      toast.success('Place saved.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save this place.');
+    } finally {
+      setSavingPlace(false);
+    }
+  };
+
+  const handleRemovePlace = async (id: string) => {
+    const next = savedAddresses.filter((a) => a.id !== id);
+    setSavedAddresses(next);
+    if (!demo && user) await updateUserProfile(user.uid, { savedAddresses: next });
+  };
 
   const toggleNotifications = async () => {
     const next = !notificationsOn;
@@ -112,6 +157,39 @@ export default function Settings() {
           </div>
         ))}
 
+        <div className="space-y-4">
+          <div className="flex items-center justify-between ml-2">
+            <h2 className="text-gray-400 text-xs font-bold uppercase tracking-widest">Saved Places</h2>
+            <button onClick={() => setShowAddPlace(true)} className="flex items-center gap-1 text-[#ff8c00] text-xs font-bold">
+              <Plus className="w-3.5 h-3.5" />
+              Add Place
+            </button>
+          </div>
+          <div className="space-y-3">
+            {savedAddresses.length === 0 && (
+              <div className="bg-white p-6 rounded-3xl border border-gray-50 text-center text-gray-400 text-sm font-medium">
+                No saved places yet — add Home or Work for one-tap booking.
+              </div>
+            )}
+            {savedAddresses.map((place) => (
+              <div key={place.id} className="w-full bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-5 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-orange-50 text-[#ff8c00] shrink-0">
+                    {addressIcon(place.label)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-display font-bold text-gray-900">{place.label}</p>
+                    <p className="text-gray-400 text-xs font-medium truncate">{place.address}</p>
+                  </div>
+                </div>
+                <button onClick={() => handleRemovePlace(place.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="pt-6 border-t border-gray-100">
           <button onClick={() => setShowDeleteModal(true)} className="w-full p-5 rounded-3xl bg-white border border-red-100 text-red-600 font-display font-bold text-lg flex items-center justify-center gap-3 hover:bg-red-50 transition-all">
             <Trash2 className="w-5 h-5" />
@@ -143,6 +221,35 @@ export default function Settings() {
                   {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showAddPlace && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !savingPlace && setShowAddPlace(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm relative z-10">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="font-display font-black text-xl text-gray-900">Add a place</h2>
+                <button onClick={() => setShowAddPlace(false)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Label</label>
+                  <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Home, Work, Warehouse..." className="w-full bg-gray-50 rounded-2xl px-4 h-12 border-none focus:ring-0 text-sm font-medium" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Address</label>
+                  <input value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="Street, city, state" className="w-full bg-gray-50 rounded-2xl px-4 h-12 border-none focus:ring-0 text-sm font-medium" />
+                </div>
+              </div>
+              <button
+                onClick={handleAddPlace}
+                disabled={savingPlace || !newLabel.trim() || !newAddress.trim()}
+                className="w-full mt-6 py-4 rounded-2xl bg-[#ff8c00] text-white font-display font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {savingPlace ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Place'}
+              </button>
             </motion.div>
           </div>
         )}

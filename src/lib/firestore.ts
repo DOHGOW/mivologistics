@@ -38,6 +38,14 @@ import { db, isDemoMode } from '../firebase';
 
 export type UserRole = 'user' | 'driver' | 'admin';
 
+export interface SavedAddress {
+  id: string;
+  label: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -47,6 +55,7 @@ export interface UserProfile {
   role: UserRole;
   status: 'active' | 'suspended';
   notificationsEnabled?: boolean;
+  savedAddresses?: SavedAddress[];
   createdAt?: Timestamp;
 }
 
