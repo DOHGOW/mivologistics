@@ -37,6 +37,7 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locatingPickup, setLocatingPickup] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'street' | 'satellite'>('street');
   const { booking, setBooking } = useBooking();
   const { user: authUser, profile, isDemoMode } = useAuth();
   const unreadCount = useUnreadNotifications(authUser?.uid);
@@ -155,7 +156,7 @@ export default function Home() {
           requestMyLocation resolves, Lagos by default until then. */}
       <div className="absolute inset-0 z-0">
         <div className="w-full h-full grayscale-[40%] opacity-70 [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full">
-          <LiveMap pickup={booking.pickupCoords} />
+          <LiveMap pickup={booking.pickupCoords} tileStyle={mapStyle} />
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-[#fcf9f8]/40 via-transparent to-[#fcf9f8] pointer-events-none" />
       </div>
@@ -174,8 +175,8 @@ export default function Home() {
         <div className="flex items-center gap-4">
           <div className="hidden md:flex gap-6 items-center mr-4">
             <button className="text-[#ff8c00] font-bold text-sm">Book</button>
-            <button className="text-gray-500 text-sm hover:text-[#ff8c00]">Activity</button>
-            <button className="text-gray-500 text-sm hover:text-[#ff8c00]">Chat</button>
+            <button onClick={() => navigate('/history')} className="text-gray-500 text-sm hover:text-[#ff8c00]">Activity</button>
+            <button onClick={() => navigate('/chat')} className="text-gray-500 text-sm hover:text-[#ff8c00]">Chat</button>
           </div>
           <button
             onClick={() => navigate('/notifications')}
@@ -233,7 +234,11 @@ export default function Home() {
 
       {/* Map Controls */}
       <div className="absolute right-6 top-40 z-10 flex flex-col gap-3">
-        <button className="w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-gray-600 hover:text-[#ff8c00] transition-colors">
+        <button
+          onClick={() => setMapStyle((s) => (s === 'street' ? 'satellite' : 'street'))}
+          title={mapStyle === 'street' ? 'Switch to satellite view' : 'Switch to street view'}
+          className={`w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center transition-colors ${mapStyle === 'satellite' ? 'text-[#ff8c00]' : 'text-gray-600 hover:text-[#ff8c00]'}`}
+        >
           <Layers className="w-6 h-6" />
         </button>
         <button

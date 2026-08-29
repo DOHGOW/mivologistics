@@ -11,6 +11,7 @@ import {
   Route,
   Sparkles,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useBooking } from '../contexts/BookingContext';
 
 const SPECS: Record<string, { weight: string; size: string }> = {
@@ -25,6 +26,16 @@ export default function TruckDetails() {
   const { booking } = useBooking();
   const spec = SPECS[booking.truckName || 'Medium'] || SPECS.Medium;
 
+  const handleShare = async () => {
+    const text = `Booking a ${booking.truckName || 'truck'} on Mivo for ${booking.destination || 'my delivery'}.`;
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Mivo Truck Booking', text }); } catch { /* cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast.success('Details copied to clipboard.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#fcf9f8] pb-40">
       <header className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-6 py-4 border-b border-gray-50">
@@ -34,7 +45,7 @@ export default function TruckDetails() {
           </button>
           <h1 className="font-display font-bold text-lg text-gray-900">Truck Details</h1>
         </div>
-        <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+        <button onClick={handleShare} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
           <Share2 className="w-5 h-5 text-gray-900" />
         </button>
       </header>

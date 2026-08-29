@@ -59,10 +59,11 @@ interface LiveMapProps {
   fleetMarkers?: { id: string; lat: number; lng: number; label: string }[];
   height?: string;
   className?: string;
+  tileStyle?: 'street' | 'satellite';
 }
 
 /** Free OSM + Leaflet map — no API key required. */
-export default function LiveMap({ pickup, destination, driverPosition, fleetMarkers, height = '100%', className = '' }: LiveMapProps) {
+export default function LiveMap({ pickup, destination, driverPosition, fleetMarkers, height = '100%', className = '', tileStyle = 'street' }: LiveMapProps) {
   const center = driverPosition || pickup || (fleetMarkers && fleetMarkers[0]) || { lat: 6.5244, lng: 3.3792 }; // default: Lagos
   const routePoints = [pickup, destination].filter(Boolean) as LatLng[];
   const allPoints = [pickup, destination, driverPosition, ...(fleetMarkers || [])].filter(Boolean) as LatLng[];
@@ -76,10 +77,17 @@ export default function LiveMap({ pickup, destination, driverPosition, fleetMark
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {tileStyle === 'satellite' ? (
+          <TileLayer
+            attribution='Tiles &copy; Esri'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        )}
         {routePoints.length === 2 && (
           <Polyline
             positions={routePoints.map((p) => [p.lat, p.lng])}

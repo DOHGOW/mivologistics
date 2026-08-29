@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, TrendingUp, Wallet, ArrowDownLeft, Truck, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ export default function DriverEarnings() {
   const { user } = useAuth();
   const [stats, setStats] = useState(isDemoMode ? DEMO_STATS : { totalEarnings: 0, totalTrips: 0 });
   const [transactions, setTransactions] = useState<Booking[]>(isDemoMode ? DEMO_TX : []);
+  const statsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isDemoMode || !user) return;
@@ -54,14 +55,18 @@ export default function DriverEarnings() {
               >
                 Request Withdrawal
               </button>
-              <button className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center active:scale-95 transition-all">
+              <button
+                onClick={() => statsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                title="View earnings breakdown"
+                className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center active:scale-95 transition-all"
+              >
                 <TrendingUp className="w-6 h-6" />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-10">
+        <div ref={statsRef} className="grid grid-cols-2 gap-4 mb-10">
           <div className="bg-white p-6 rounded-[2rem] border border-gray-50 shadow-sm">
             <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center text-green-600 mb-4">
               <ArrowDownLeft className="w-5 h-5" />

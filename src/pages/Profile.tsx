@@ -1,14 +1,44 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Settings, Shield, CreditCard, Bell, HelpCircle, LogOut, ChevronRight, Truck, Star, ArrowLeft } from 'lucide-react';
+import { Edit2, Settings, Shield, CreditCard, Bell, HelpCircle, LogOut, ChevronRight, Truck, Star, ArrowLeft, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { logout, isDemoMode } from '../firebase';
-import { countUserBookings, getDriverStats, getDriverRating } from '../lib/firestore';
+import { countUserBookings, getDriverStats, getDriverRating, updateUserProfile } from '../lib/firestore';
+import { uploadDriverDocument } from '../lib/storage';
 
 export default function Profile() {
   const navigate = useNavigate();
   const { user, profile, isDemoMode: demo } = useAuth();
   const [stat, setStat] = useState<{ trips: number; rating: number }>({ trips: 124, rating: 4.9 });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoURL, setPhotoURL] = useState<string | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPhotoURL(profile?.photoURL);
+  }, [profile?.photoURL]);
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+    if (demo) {
+      toast.info('Demo mode — connect Firebase to upload a real profile photo.');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadDriverDocument(user.uid, 'avatar', file);
+      await updateUserProfile(user.uid, { photoURL: url });
+      setPhotoURL(url);
+      toast.success('Profile photo updated.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not upload photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   useEffect(() => {
     if (isDemoMode || !user || !profile) return;
@@ -62,10 +92,20 @@ export default function Profile() {
         <div className="flex flex-col items-center mb-10">
           <div className="relative">
             <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden ring-4 ring-white shadow-2xl bg-gray-100 flex items-center justify-center text-gray-400 font-display font-black text-4xl">
-              {profile?.displayName?.[0] || 'G'}
+              {photoURL ? (
+                <img src={photoURL} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                profile?.displayName?.[0] || 'G'
+              )}
             </div>
-            <button className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#ff8c00] text-white rounded-2xl flex items-center justify-center shadow-lg border-4 border-white">
-              <Edit2 className="w-4 h-4" />
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoSelected} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              title="Change profile photo"
+              className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#ff8c00] text-white rounded-2xl flex items-center justify-center shadow-lg border-4 border-white disabled:opacity-70"
+            >
+              {uploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit2 className="w-4 h-4" />}
             </button>
           </div>
           <h2 className="mt-6 font-display font-black text-3xl text-gray-900 tracking-tighter">{profile?.displayName || 'Guest User'}</h2>
