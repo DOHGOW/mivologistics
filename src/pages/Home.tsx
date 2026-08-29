@@ -23,9 +23,10 @@ import { Loader2, Star, X } from 'lucide-react';
 import { useBooking } from '../contexts/BookingContext';
 import { useAuth } from '../contexts/AuthContext';
 import { logout } from '../firebase';
-import { geocodeAddress, distanceKm } from '../lib/geocode';
+import { geocodeAddress, reverseGeocode, distanceKm } from '../lib/geocode';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { listUserBookingsPage, hasReviewedBooking, type Booking } from '../lib/firestore';
+import LiveMap from '../components/LiveMap';
 
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
@@ -35,6 +36,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [locatingPickup, setLocatingPickup] = useState(false);
   const { booking, setBooking } = useBooking();
   const { user: authUser, profile, isDemoMode } = useAuth();
   const unreadCount = useUnreadNotifications(authUser?.uid);
@@ -59,6 +61,41 @@ export default function Home() {
     setUnratedBooking(null);
   };
 
+  // "Current Location" used to be a hardcoded label with no real location
+  // behind it -- handleFindTruck silently fell back to a fixed Lagos-island
+  // coordinate whenever pickup was left at that default. This actually
+  // requests the device's real GPS position (and the permission prompt
+  // that goes with it), then reverse-geocodes it into a readable address.
+  const requestMyLocation = () => {
+    if (!('geolocation' in navigator)) {
+      toast.error('Location services are not available on this device.');
+      return;
+    }
+    setLocatingPickup(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const address = await reverseGeocode(coords.lat, coords.lng).catch(() => null);
+        setBooking((b) => ({ ...b, pickupLocation: address || b.pickupLocation, pickupCoords: coords }));
+        setLocatingPickup(false);
+      },
+      (err) => {
+        setLocatingPickup(false);
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission denied — type your pickup address instead.'
+            : 'Could not detect your location. Type your pickup address instead.'
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    requestMyLocation();
+  }, [isDemoMode]);
+
   const user = {
     displayName: profile?.displayName || 'Guest User',
     photoURL: profile?.photoURL || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100',
@@ -73,9 +110,14 @@ export default function Home() {
     setLocating(true);
     try {
       const [pickup, dest] = await Promise.all([
-        booking.pickupLocation && booking.pickupLocation !== 'Current Location'
-          ? geocodeAddress(booking.pickupLocation)
-          : Promise.resolve(null),
+        // Prefer the coords already captured from the device's real GPS fix
+        // (requestMyLocation) over re-geocoding the address text -- more
+        // precise, and avoids a redundant Nominatim round trip.
+        booking.pickupCoords
+          ? Promise.resolve({ lat: booking.pickupCoords.lat, lng: booking.pickupCoords.lng })
+          : booking.pickupLocation && booking.pickupLocation !== 'Current Location'
+            ? geocodeAddress(booking.pickupLocation)
+            : Promise.resolve(null),
         geocodeAddress(booking.destination),
       ]);
 
@@ -108,14 +150,14 @@ export default function Home() {
 
   return (
     <div className="relative h-screen bg-[#fcf9f8] overflow-hidden">
-      {/* Map Background */}
+      {/* Map Background — a real live Leaflet/OSM map (was a static stock
+          photo before), centered on the driver's actual GPS fix once
+          requestMyLocation resolves, Lagos by default until then. */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=2000" 
-          alt="Map"
-          className="w-full h-full object-cover grayscale opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#fcf9f8]/40 via-transparent to-[#fcf9f8]" />
+        <div className="w-full h-full grayscale-[40%] opacity-70 [&_.leaflet-container]:h-full [&_.leaflet-container]:w-full">
+          <LiveMap pickup={booking.pickupCoords} />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#fcf9f8]/40 via-transparent to-[#fcf9f8] pointer-events-none" />
       </div>
 
       {/* Header */}
@@ -194,8 +236,13 @@ export default function Home() {
         <button className="w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-gray-600 hover:text-[#ff8c00] transition-colors">
           <Layers className="w-6 h-6" />
         </button>
-        <button className="w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-gray-600 hover:text-[#ff8c00] transition-colors">
-          <LocateFixed className="w-6 h-6" />
+        <button
+          onClick={requestMyLocation}
+          disabled={locatingPickup}
+          title="Center on my location"
+          className="w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-gray-600 hover:text-[#ff8c00] transition-colors disabled:opacity-60"
+        >
+          {locatingPickup ? <Loader2 className="w-6 h-6 animate-spin" /> : <LocateFixed className="w-6 h-6" />}
         </button>
       </div>
 
@@ -232,13 +279,21 @@ export default function Home() {
             <div className="relative group">
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-4">Pickup Location</label>
               <div className="bg-gray-50 rounded-2xl flex items-center px-4 h-12 border border-transparent focus-within:border-[#ff8c00]/20 focus-within:bg-white transition-all">
-                <Navigation className="w-4 h-4 text-[#ff8c00] mr-3" />
-                <input 
-                  type="text" 
-                  value={booking.pickupLocation}
-                  onChange={(e) => setBooking({ ...booking, pickupLocation: e.target.value })}
-                  className="bg-transparent border-none focus:ring-0 w-full font-semibold text-sm text-gray-900"
+                <Navigation className="w-4 h-4 text-[#ff8c00] mr-3 shrink-0" />
+                <input
+                  type="text"
+                  value={locatingPickup ? 'Finding your location…' : booking.pickupLocation}
+                  disabled={locatingPickup}
+                  onChange={(e) => setBooking({ ...booking, pickupLocation: e.target.value, pickupCoords: undefined })}
+                  className="bg-transparent border-none focus:ring-0 w-full font-semibold text-sm text-gray-900 disabled:text-gray-400"
                 />
+                {locatingPickup ? (
+                  <Loader2 className="w-4 h-4 text-gray-300 animate-spin shrink-0" />
+                ) : (
+                  <button type="button" onClick={requestMyLocation} title="Use my current location" className="text-gray-300 hover:text-[#ff8c00] transition-colors shrink-0">
+                    <LocateFixed className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 

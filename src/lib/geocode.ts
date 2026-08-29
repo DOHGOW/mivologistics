@@ -22,6 +22,15 @@ export async function geocodeAddress(address: string, biasCountry = 'ng'): Promi
   return { lat: parseFloat(lat), lng: parseFloat(lon), displayName: display_name };
 }
 
+/** Free reverse geocoding via Nominatim — turns a real GPS fix into a readable address. */
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.display_name || null;
+}
+
 /** Haversine distance in km — used to price a trip from two coordinates. */
 export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;

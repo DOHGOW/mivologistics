@@ -10,6 +10,18 @@
   body {
     @apply font-sans bg-[#fcf9f8] text-[#1c1b1b];
   }
+
+  /* Every form field in this app relies on a custom wrapper-level focus
+     style (focus-within:border-*, focus-within:bg-white) instead of the
+     browser's native outline -- but only ever clears Tailwind's OWN ring
+     utility (focus:ring-0), never the native outline itself. Without this,
+     every input/select/textarea shows the browser's default focus outline
+     (a black box in Chromium) on top of the intended design. */
+  input,
+  textarea,
+  select {
+    outline: none;
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar {
