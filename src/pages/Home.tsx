@@ -27,6 +27,7 @@ import { geocodeAddress, reverseGeocode, distanceKm } from '../lib/geocode';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { listUserBookingsPage, hasReviewedBooking, type Booking } from '../lib/firestore';
 import LiveMap from '../components/LiveMap';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
@@ -119,7 +120,11 @@ export default function Home() {
           : booking.pickupLocation && booking.pickupLocation !== 'Current Location'
             ? geocodeAddress(booking.pickupLocation)
             : Promise.resolve(null),
-        geocodeAddress(booking.destination),
+        // Likewise, prefer coords already captured from picking a real
+        // autocomplete suggestion over re-geocoding free-typed text.
+        booking.destinationCoords
+          ? Promise.resolve({ lat: booking.destinationCoords.lat, lng: booking.destinationCoords.lng })
+          : geocodeAddress(booking.destination),
       ]);
 
       if (!dest) {
@@ -198,13 +203,13 @@ export default function Home() {
       <div className="relative z-40 px-6 mt-4">
         <div className="max-w-lg mx-auto bg-white/90 backdrop-blur-md rounded-2xl p-2 shadow-xl border border-white/20 flex items-center gap-3 px-4 h-14">
           <MapPin className="w-5 h-5 text-[#ff8c00]" />
-          <input
-            type="text"
+          <AddressAutocomplete
             value={booking.destination}
-            onChange={(e) => setBooking({ ...booking, destination: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleFindTruck()}
+            onChange={(text) => setBooking({ ...booking, destination: text, destinationCoords: undefined })}
+            onSelect={(result) => setBooking({ ...booking, destination: result.displayName, destinationCoords: { lat: result.lat, lng: result.lng } })}
+            onEnter={handleFindTruck}
             placeholder="Where are you shipping to?"
-            className="bg-transparent border-none focus:ring-0 w-full text-gray-900 placeholder:text-gray-400 font-medium"
+            inputClassName="bg-transparent border-none focus:ring-0 w-full text-gray-900 placeholder:text-gray-400 font-medium"
           />
         </div>
       </div>
@@ -307,13 +312,13 @@ export default function Home() {
             <div className="relative group">
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 ml-4">Destination</label>
               <div className="bg-gray-50 rounded-2xl flex items-center px-4 h-12 border border-transparent focus-within:border-[#ff8c00]/20 focus-within:bg-white transition-all">
-                <MapPin className="w-4 h-4 text-gray-400 mr-3" />
-                <input 
-                  type="text" 
-                  placeholder="Destination"
+                <MapPin className="w-4 h-4 text-gray-400 mr-3 shrink-0" />
+                <AddressAutocomplete
                   value={booking.destination}
-                  onChange={(e) => setBooking({ ...booking, destination: e.target.value })}
-                  className="bg-transparent border-none focus:ring-0 w-full font-medium text-sm text-gray-900"
+                  onChange={(text) => setBooking({ ...booking, destination: text, destinationCoords: undefined })}
+                  onSelect={(result) => setBooking({ ...booking, destination: result.displayName, destinationCoords: { lat: result.lat, lng: result.lng } })}
+                  placeholder="Destination"
+                  inputClassName="bg-transparent border-none focus:ring-0 w-full font-medium text-sm text-gray-900"
                 />
               </div>
             </div>

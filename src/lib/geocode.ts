@@ -22,6 +22,17 @@ export async function geocodeAddress(address: string, biasCountry = 'ng'): Promi
   return { lat: parseFloat(lat), lng: parseFloat(lon), displayName: display_name };
 }
 
+/** Free address-suggestion search via Nominatim — powers autocomplete as the user types. */
+export async function searchAddressSuggestions(query: string, biasCountry = 'ng'): Promise<GeocodeResult[]> {
+  if (!query.trim() || query.trim().length < 3) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=${biasCountry}&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map((r) => ({ lat: parseFloat(r.lat), lng: parseFloat(r.lon), displayName: r.display_name }));
+}
+
 /** Free reverse geocoding via Nominatim — turns a real GPS fix into a readable address. */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
