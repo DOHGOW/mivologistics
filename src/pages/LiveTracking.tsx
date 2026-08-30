@@ -14,7 +14,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LiveMap from '../components/LiveMap';
+import MovementBadge from '../components/MovementBadge';
 import { watchBooking, watchDriverLocation, hasReviewedBooking, type Booking, type DriverLocation } from '../lib/firestore';
+import { useCustomerLocationBroadcast } from '../hooks/useCustomerLocationBroadcast';
+import { useMovementStatus } from '../hooks/useMovementStatus';
 import { isDemoMode } from '../firebase';
 
 const AVG_SPEED_KMH = 35;
@@ -51,6 +54,12 @@ export default function LiveTracking() {
     return () => unsub();
   }, [bookingId]);
 
+  // Share the customer's own position back while the trip is active, so the
+  // driver can find them at the pickup point and admin can see both parties
+  // on one map -- mirrors the driver's own broadcast in ActiveTrip.tsx.
+  const sharingLocation = !isDemoMode && !!bookingId && !!booking && booking.status !== 'delivered' && booking.status !== 'cancelled';
+  useCustomerLocationBroadcast(bookingId, sharingLocation);
+
   const demoBooking: Booking | null = isDemoMode
     ? {
         userId: 'demo', userName: 'You', truckId: '1', truckName: 'Medium Truck',
@@ -63,8 +72,10 @@ export default function LiveTracking() {
 
   const activeBooking = booking || demoBooking;
   const activeDriverLoc: DriverLocation | null = isDemoMode && demoBooking
-    ? { lat: 6.52, lng: 3.355 }
+    ? { lat: 6.52, lng: 3.355, speedKmh: 28 }
     : driverLoc;
+
+  const driverMovement = useMovementStatus(activeDriverLoc);
 
   const remainingKm = useMemo(() => {
     if (!activeBooking?.destinationCoords || !activeDriverLoc) return activeBooking?.distanceKm ?? 0;
@@ -147,7 +158,8 @@ export default function LiveTracking() {
                 </div>
                 <div>
                   <h3 className="font-display font-bold text-gray-900">{activeBooking?.driverName}</h3>
-                  <p className="text-xs font-bold text-[#ff8c00] uppercase tracking-wider">{activeBooking?.truckName}</p>
+                  <p className="text-xs font-bold text-[#ff8c00] uppercase tracking-wider mb-1">{activeBooking?.truckName}</p>
+                  <MovementBadge status={driverMovement.status} speedKmh={driverMovement.speedKmh} />
                 </div>
               </div>
               <div className="flex gap-2">
@@ -225,6 +237,13 @@ export default function LiveTracking() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
+            {sharingLocation && (
+              <div className="pt-4 flex items-center gap-2 text-gray-400">
+                <Radar className="w-3.5 h-3.5" />
+                <p className="text-[10px] font-medium">Your location is shared with your driver and Mivo support for this trip only.</p>
+              </div>
+            )}
           </div>
         </div>
       </main>

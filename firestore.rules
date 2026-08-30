@@ -14,6 +14,7 @@ service cloud.firestore {
     // /bookings/{bookingId}                — Booking
     //   /bookings/{bookingId}/messages/{id}— ChatMessage
     // /driverLocations/{bookingId}         — live lat/lng for one active booking
+    // /customerLocations/{bookingId}       — live lat/lng for the customer on one active booking
     // /reviews/{reviewId}                  — Review
     //
     // Admin roles are granted manually by editing a user's `role` field to
@@ -200,6 +201,17 @@ service cloud.firestore {
         allow create: if isAuthenticated() && bookingOf(bookingId).driverId == request.auth.uid;
         allow update, delete: if false;
       }
+    }
+
+    // ===============================================================
+    // customerLocations — mirrors driverLocations, one live doc per active
+    // booking, so the driver/admin can see the customer's position too
+    // (e.g. to find them at a pickup point) and tell if they're moving.
+    // ===============================================================
+
+    match /customerLocations/{bookingId} {
+      allow read: if isBookingParty(bookingId) || isAdmin();
+      allow write: if isAuthenticated() && bookingOf(bookingId).userId == request.auth.uid;
     }
 
     // ===============================================================

@@ -389,8 +389,19 @@ export async function countUserBookings(userId: string): Promise<number> {
 // Live driver location (one doc per active booking)
 // ---------------------------------------------------------------------------
 
+// GPS reads (heading, speed) are frequently null -- device has no compass,
+// no fix yet, etc. The Firestore client SDK rejects a literal `undefined`
+// field outright, so a location object built with `field: x ?? undefined`
+// throws client-side before any write is even attempted, and that throw was
+// silently swallowed by every caller's `.catch()`. Stripping undefined keys
+// here, once, means every caller can build a plain optional object without
+// having to remember the conditional-spread dance.
+function omitUndefined<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
 export async function pushDriverLocation(bookingId: string, loc: Omit<DriverLocation, 'updatedAt'>) {
-  await setDoc(doc(db, 'driverLocations', bookingId), { ...loc, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'driverLocations', bookingId), { ...omitUndefined(loc), updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export function watchDriverLocation(bookingId: string, cb: (loc: DriverLocation | null) => void): Unsubscribe {
@@ -412,13 +423,37 @@ export function watchAllDriverLocations(cb: (locations: Record<string, DriverLoc
 // doc above is overwritten on every update, so it alone can't tell you
 // anything about speed changes over the course of a trip.
 export async function pushLocationPing(bookingId: string, ping: Omit<LocationPing, 'timestamp'>) {
-  await addDoc(collection(db, 'driverLocations', bookingId, 'pings'), { ...ping, timestamp: serverTimestamp() });
+  await addDoc(collection(db, 'driverLocations', bookingId, 'pings'), { ...omitUndefined(ping), timestamp: serverTimestamp() });
 }
 
 export async function listLocationPings(bookingId: string): Promise<LocationPing[]> {
   const q = query(collection(db, 'driverLocations', bookingId, 'pings'), orderBy('timestamp', 'asc'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as LocationPing);
+}
+
+// ---------------------------------------------------------------------------
+// Live customer location (mirrors driver location above) — lets a driver
+// find their customer at a pickup point, and lets admin see both parties on
+// one active booking at once.
+// ---------------------------------------------------------------------------
+
+export async function pushCustomerLocation(bookingId: string, loc: Omit<DriverLocation, 'updatedAt'>) {
+  await setDoc(doc(db, 'customerLocations', bookingId), { ...omitUndefined(loc), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export function watchCustomerLocation(bookingId: string, cb: (loc: DriverLocation | null) => void): Unsubscribe {
+  return onSnapshot(doc(db, 'customerLocations', bookingId), (snap) => {
+    cb(snap.exists() ? (snap.data() as DriverLocation) : null);
+  });
+}
+
+export function watchAllCustomerLocations(cb: (locations: Record<string, DriverLocation>) => void): Unsubscribe {
+  return onSnapshot(collection(db, 'customerLocations'), (snap) => {
+    const map: Record<string, DriverLocation> = {};
+    snap.docs.forEach((d) => { map[d.id] = d.data() as DriverLocation; });
+    cb(map);
+  });
 }
 
 // ---------------------------------------------------------------------------

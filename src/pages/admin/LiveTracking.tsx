@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Navigation, Truck, Search, ChevronRight, MapPin } from 'lucide-react';
+import { ArrowLeft, Navigation, Truck, Search, ChevronRight, MapPin, User } from 'lucide-react';
 import LiveMap from '../../components/LiveMap';
-import { watchAllDriverLocations, listAllBookingsPage, type Booking, type DriverLocation } from '../../lib/firestore';
+import MovementBadge from '../../components/MovementBadge';
+import { watchAllDriverLocations, watchAllCustomerLocations, listAllBookingsPage, type Booking, type DriverLocation } from '../../lib/firestore';
+import { useMovementStatus } from '../../hooks/useMovementStatus';
 import { isDemoMode } from '../../firebase';
 
 const DEMO_ACTIVE: Booking[] = [
@@ -11,15 +13,28 @@ const DEMO_ACTIVE: Booking[] = [
   { id: 'MV-9022', userId: 'u2', userName: 'Chidi E.', driverName: 'Blessing O.', truckId: '3', truckName: 'Large', pickupLocation: 'Apapa Port, Lagos', pickupCoords: { lat: 6.44, lng: 3.36 }, destination: 'Surulere, Lagos', destinationCoords: { lat: 6.5, lng: 3.35 }, distanceKm: 12, price: 25000, paymentStatus: 'paid', status: 'assigned' },
 ];
 const DEMO_LOCATIONS: Record<string, DriverLocation> = {
-  'MV-9021': { lat: 6.52, lng: 3.41 },
-  'MV-9022': { lat: 6.46, lng: 3.36 },
+  'MV-9021': { lat: 6.52, lng: 3.41, speedKmh: 32 },
+  'MV-9022': { lat: 6.46, lng: 3.36, speedKmh: 0 },
 };
+const DEMO_CUSTOMER_LOCATIONS: Record<string, DriverLocation> = {
+  'MV-9021': { lat: 6.6, lng: 3.35, speedKmh: 0 },
+  'MV-9022': { lat: 6.44, lng: 3.36, speedKmh: 0 },
+};
+
+// Pulled out as its own component (not inlined in the .map() below) purely
+// so useMovementStatus -- a hook -- can be called once per fleet row without
+// breaking the rules of hooks.
+function FleetRowBadge({ loc }: { loc: DriverLocation | null }) {
+  const { status, speedKmh } = useMovementStatus(loc);
+  return <MovementBadge status={status} speedKmh={speedKmh} className="scale-90 origin-left" />;
+}
 
 export default function AdminLiveTracking() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<Booking | null>(null);
   const [activeBookings, setActiveBookings] = useState<Booking[]>(isDemoMode ? DEMO_ACTIVE : []);
   const [locations, setLocations] = useState<Record<string, DriverLocation>>(isDemoMode ? DEMO_LOCATIONS : {});
+  const [customerLocations, setCustomerLocations] = useState<Record<string, DriverLocation>>(isDemoMode ? DEMO_CUSTOMER_LOCATIONS : {});
 
   useEffect(() => {
     if (isDemoMode) return;
@@ -28,7 +43,8 @@ export default function AdminLiveTracking() {
       setActiveBookings(res.items.filter((b) => b.status === 'assigned' || b.status === 'in-transit'));
     });
     const unsubLocations = watchAllDriverLocations(setLocations);
-    return () => { unsubLocations(); };
+    const unsubCustomerLocations = watchAllCustomerLocations(setCustomerLocations);
+    return () => { unsubLocations(); unsubCustomerLocations(); };
   }, []);
 
   const fleetMarkers = activeBookings
@@ -37,6 +53,16 @@ export default function AdminLiveTracking() {
       return loc ? { id: b.id!, lat: loc.lat, lng: loc.lng, label: `${b.driverName} — ${b.truckName}` } : null;
     })
     .filter(Boolean) as { id: string; lat: number; lng: number; label: string }[];
+
+  const customerMarkers = activeBookings
+    .map((b) => {
+      const loc = b.id ? customerLocations[b.id] : null;
+      return loc ? { id: b.id!, lat: loc.lat, lng: loc.lng, label: `${b.userName} (customer)` } : null;
+    })
+    .filter(Boolean) as { id: string; lat: number; lng: number; label: string }[];
+
+  const selectedDriverMovement = useMovementStatus(selected?.id ? locations[selected.id] || null : null);
+  const selectedCustomerMovement = useMovementStatus(selected?.id ? customerLocations[selected.id] || null : null);
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] flex flex-col h-screen overflow-hidden">
@@ -81,10 +107,11 @@ export default function AdminLiveTracking() {
                     {b.status.replace('-', ' ')}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500">
+                <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 mb-2">
                   <Navigation className="w-3 h-3" />
                   <span className="truncate">{b.destination}</span>
                 </div>
+                <FleetRowBadge loc={(b.id && locations[b.id]) || null} />
               </button>
             ))}
           </div>
@@ -95,9 +122,16 @@ export default function AdminLiveTracking() {
             pickup={selected?.pickupCoords}
             destination={selected?.destinationCoords}
             driverPosition={selected?.id ? locations[selected.id] : null}
+            customerPosition={selected?.id ? customerLocations[selected.id] : null}
             fleetMarkers={!selected ? fleetMarkers : undefined}
+            customerMarkers={!selected ? customerMarkers : undefined}
             height="100%"
           />
+
+          <div className="absolute top-6 left-6 z-10 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex gap-4 text-xs font-semibold text-gray-600">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#ff8c00]" />Driver</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />Customer</span>
+          </div>
 
           <AnimatePresence>
             {selected && (
@@ -118,6 +152,26 @@ export default function AdminLiveTracking() {
                 </div>
 
                 <div className="space-y-6 flex-1">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Live Status</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2 mb-2 text-gray-400">
+                          <Truck className="w-3.5 h-3.5" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest">Driver</p>
+                        </div>
+                        <MovementBadge status={selectedDriverMovement.status} speedKmh={selectedDriverMovement.speedKmh} />
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl">
+                        <div className="flex items-center gap-2 mb-2 text-gray-400">
+                          <User className="w-3.5 h-3.5" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest">Customer</p>
+                        </div>
+                        <MovementBadge status={selectedCustomerMovement.status} speedKmh={selectedCustomerMovement.speedKmh} />
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Trip Details</h4>
                     <div className="space-y-4">

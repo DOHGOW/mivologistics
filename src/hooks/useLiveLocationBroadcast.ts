@@ -29,7 +29,13 @@ export function useLiveLocationBroadcast(bookingId: string | undefined, active: 
           heading: pos.coords.heading ?? undefined,
           speedKmh,
         };
-        pushDriverLocation(bookingId, loc).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+        pushDriverLocation(bookingId, loc).catch((e) => {
+          // This used to fail silently on every device without a compass/
+          // speed fix (a very common case) -- surface it so a real failure
+          // is at least visible in the console instead of invisible.
+          console.error('pushDriverLocation failed:', e);
+          setError(e instanceof Error ? e.message : String(e));
+        });
         pushLocationPing(bookingId, loc).catch(() => {
           // Non-fatal: live tracking still works even if a ping write fails,
           // it just means this sample is missing from the safety report.
